@@ -10,6 +10,10 @@ several gateways per group.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+For unseenet 0.5 (`unseenet>=0.5,<0.6`); update the nodes first. Markdown and pictures come in from Matrix and NIP-29 groups, each network gets its default view, and several gateways can serve one Nostr or Usenet group.
+
 ### Added
 - **Several gateways for Nostr and Usenet groups too** (#16, UN-RFC 0038), as
   for Matrix: `groups = [{id = ..., group = "...@<fingerprint>"}]` (Nostr) or
@@ -92,5 +96,6 @@ from 0.4.0 need the gateway's keys ripened once (`unseenet-gateway ripen`).
   [unseenet/unseenet-gateway](https://github.com/unseenet/unseenet-gateway)
   (the old address redirects).
 
-[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/unseenet/unseenet-gateway/releases/tag/v0.1.0
