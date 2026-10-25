@@ -27,3 +27,7 @@ jobs:
       - run: pip install --force-reinstall --no-deps "unseenet @ git+https://github.com/unseenet/unseenet@main"
       - run: pip install "unseenet @ git+https://github.com/unseenet/unseenet@main"   # its new dependencies, if any
       - run: python -m pytest -q
+
+  docs:
+    # docs/ checked strictly, as unseenet-docs gathers it into unseenet.org
+    uses: unseenet/.github/.github/workflows/docs-check.yml@main
