@@ -228,7 +228,7 @@ Versions follow [semantic versioning](https://semver.org/) on the same
 principles as [unseenet](https://github.com/unseenet/unseenet/blob/main/docs/development.md#versioning):
 tags `vX.Y.Z` on `main`, the changes in [CHANGELOG.md](CHANGELOG.md), and
 releases on [PyPI](https://pypi.org/p/unseenet-gateway). Each release names the
-minor version of unseenet it works with (`unseenet>=0.4.1,<0.5`); a new minor
+minor version of unseenet it works with (`unseenet>=0.5,<0.6`); a new minor
 version of unseenet means a new release of the gateway.
 
 To release: move the entries under `## [Unreleased]` in `CHANGELOG.md` to a
@@ -237,6 +237,26 @@ new `## [X.Y.Z] - YYYY-MM-DD` section, set `__version__` in
 `git tag -a vX.Y.Z -m "unseenet-gateway X.Y.Z" && git push origin vX.Y.Z`.
 `.github/workflows/release.yml` checks the tag, version and changelog, runs
 the tests, publishes to PyPI (trusted publishing) and makes the GitHub release.
+
+## Part of Unseenet
+
+Unseenet is made in several repositories, each released on its own:
+
+| Repository | What it is |
+|---|---|
+| [unseenet](https://github.com/unseenet/unseenet) | The protocol (UN-RFCs), the core library, the node and the command-line client |
+| [unseenet-tui](https://github.com/unseenet/unseenet-tui) | The terminal client (moving here from unseenet, unseenet#548) |
+| [unseenet-gui](https://github.com/unseenet/unseenet-gui) | The graphical client - in a window, booted, or in a browser |
+| [unseenet-portable](https://github.com/unseenet/unseenet-portable) | Builds the portable clients, Terminal and Graphical, with Tor inside (unseenet#549) |
+| [unseenet-bootable](https://github.com/unseenet/unseenet-bootable) | Builds the bootable images, Terminal and Graphical, and later a node image (unseenet#550) |
+| [unseenet-docs](https://github.com/unseenet/unseenet-docs) | The site [unseenet.org](https://unseenet.org), gathering the docs of every repository (unseenet#547) |
+| [unseenet-entrance](https://github.com/unseenet/unseenet-entrance) | Web entrances: the graphical client in an ordinary browser |
+| [unseenet-gateway](https://github.com/unseenet/unseenet-gateway) | Gateways to other networks: Usenet, Nostr, Matrix |
+| [unseenet-bots](https://github.com/unseenet/unseenet-bots) | Bots that keep channels filled with current content |
+| [unseenet-helpbot](https://github.com/unseenet/unseenet-helpbot) | The bot that answers questions in `unseenet.help` |
+| [unseenet-stats](https://github.com/unseenet/unseenet-stats) | Statistics for the network |
+| [unseenet-mcp](https://github.com/unseenet/unseenet-mcp) | An MCP server, so a language model can read and post as you (planning) |
+| [unseenet-demo](https://github.com/unseenet/unseenet-demo) | Demo people, feeds and sites, made with the command-line client |
 
 ## License
 
