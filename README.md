@@ -1,4 +1,25 @@
-# Unseenet gateway
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/unseenet/unseenet/main/assets/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/unseenet/unseenet/main/assets/logo-light.svg" alt="Unseenet" width="360">
+  </picture>
+</p>
+
+<h1 align="center">unseenet-gateway</h1>
+
+<p align="center"><b>Gateways between Unseenet and other networks.</b><br>
+Usenet, Nostr and Matrix in and out of Unseenet - one shared core, one adapter per network.</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/unseenet-gateway/"><img src="https://img.shields.io/pypi/v/unseenet-gateway?label=PyPI" alt="PyPI"></a>
+  <a href="https://github.com/unseenet/unseenet-gateway/actions/workflows/tests.yml"><img src="https://github.com/unseenet/unseenet-gateway/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
+</p>
+
+> **Pre-alpha.** Nothing is stable yet, and Unseenet has not had a security
+> review. Do not rely on it to protect anyone yet.
+
+## What it is
 
 Gateways between [Unseenet](https://unseenet.org) and other networks, as
 specified in [UN-RFC 0023](https://github.com/unseenet/unseenet/blob/main/rfc/un-rfc-0023.md)
@@ -20,9 +41,91 @@ others whose names UN-RFC 0023 section 9 reserves – are meant to be easy to
 add, also by others and in their own repositories, without any change to
 this one. See [Writing an adapter](#writing-an-adapter).
 
-> **Pre-alpha.** Everything above runs against a lab setup only. Export to
+> **In the lab.** Everything above runs against a lab setup only. Export to
 > Usenet is not implemented yet. Do not point this at a real Usenet peer
 > without an agreement with its administrators.
+
+## Run it
+
+Requires Python 3.11+, Tor, and INN carrying the groups you want.
+
+```
+python3 -m venv .venv
+.venv/bin/pip install unseenet-gateway
+cp gateway.example.toml gateway.toml          # and edit it
+
+unseenet-gateway -c gateway.toml keys            # creates the group key and the gateway key
+# put the printed group key in gateway.group_owner
+unseenet-gateway -c gateway.toml ripen --group-key   # once: 7-11 minutes per key, see below
+unseenet-gateway -c gateway.toml create-groups   # publishes one manifest per group
+unseenet-gateway -c gateway.toml import-once -v
+unseenet-gateway -c gateway.toml run             # every `interval` seconds
+unseenet-gateway -c gateway.toml stats
+unseenet-gateway -c gateway.toml -n nostr import-once -v   # one network only
+unseenet-gateway -c gateway.toml -n matrix matrix-login    # Matrix: save the bot's token
+```
+
+Passphrases are read from `UNSEENET_GATEWAY_PASSPHRASE` (gateway key) and
+`UNSEENET_GATEWAY_GROUP_PASSPHRASE` (group key), or asked for. After
+`create-groups`, move the group key file off the gateway host: it is only
+needed again to change a group's manifest.
+
+**Key ripening** (UN-RFC 0025). Nodes take articles only from keys that have
+done a few minutes of work, which keeps throwaway keys from spamming. The
+gateway posts through the unseenet core, so ripening, the `Key-Ripening`
+header and postage are the same as in every client. `ripen` does the work
+for the gateway key (and with `--group-key` the group key) once at setup and
+publishes it: about 7-11 minutes each, one core. The chains are kept beside
+the key files as `<key file>.state.json` (public, nothing secret). While
+`run` runs, the gateway key ripens on to level 3, where it pays no extra
+postage: a few days on one core at low priority. The group key stays at
+level 0; it only signs manifests now and then. If a key was ripened and
+published elsewhere, the gateway takes its chain over instead of starting again.
+
+### Requests from other networks
+
+A source can ask to be gatewayed. On Matrix, a room asks by inviting the
+gateway's account; a room that is not in the configuration then becomes a
+**request in the operator's own Unseenet inbox** (`gateway.contact`, the personal
+inbox of `gateway.operator`): what the room is, who invited, and the group name
+it would get. The operator answers the post from any Unseenet client:
+
+```
+approve                 gateway it under the proposed name
+approve matrix.x.name   ... under another name
+decline <reason>        the room's invitation is declined with this reason
+```
+
+Only answers signed by the operator key count. With `auto_create = true` the
+gateway publishes the approved group itself (the group key must then be on the
+gateway host) and joins the room within a pass; otherwise approval only marks
+it, and the operator runs `create-groups`. Spaces, private and encrypted rooms
+are declined without asking. Each room is asked about once.
+
+### Several gateways for one group
+
+A gatewayed group can have several gateways (UN-RFC 0038), so it does not
+depend on one host. They share the work by turns: each takes a rank from its
+key, the first imports and exports at once, the next fills in what is still
+missing after `stagger` seconds (300 unless the manifest says otherwise), and
+so on. Nothing is sent twice: a gateway skips messages another has imported
+and submissions another has exported. If a gateway stops, the others go on.
+
+People decide who takes part. To help serve a group another gateway runs:
+
+1. The room invites this gateway's account too.
+2. The operator approves the request with the group's full Group ID instead of
+   a name (`approve matrix.matrix-org.room@<fingerprint>`), or configures the
+   room with `rooms = [{room = "#room:server", group = "<Group ID>"}]`.
+3. This gateway sends a join request to the owning gateway, whose operator gets
+   it in their inbox, with whether the new account is in the room.
+   `approve` there publishes a new manifest with both gateways
+   (the owner needs `auto_create`).
+
+Until the manifest lists it, the joining gateway writes nothing in the group.
+Every gateway announces itself in the directory `unseenet.gateways` (name,
+operator, accounts to invite, groups served); a group stays active while one of
+its gateways announces it.
 
 ## How it works
 
@@ -91,89 +194,18 @@ What a gateway never does: learn or record anything about who wrote an
 Unseenet post or where it came from. It can stop a key; it cannot identify a
 person (UN-RFC 0023 section 6.2).
 
-## Setup
-
-Requires Python 3.11+, Tor, and INN carrying the groups you want.
+## Develop
 
 ```
 python3 -m venv .venv
-.venv/bin/pip install unseenet-gateway
-cp gateway.example.toml gateway.toml          # and edit it
-
-unseenet-gateway -c gateway.toml keys            # creates the group key and the gateway key
-# put the printed group key in gateway.group_owner
-unseenet-gateway -c gateway.toml ripen --group-key   # once: 7-11 minutes per key, see below
-unseenet-gateway -c gateway.toml create-groups   # publishes one manifest per group
-unseenet-gateway -c gateway.toml import-once -v
-unseenet-gateway -c gateway.toml run             # every `interval` seconds
-unseenet-gateway -c gateway.toml stats
-unseenet-gateway -c gateway.toml -n nostr import-once -v   # one network only
-unseenet-gateway -c gateway.toml -n matrix matrix-login    # Matrix: save the bot's token
+.venv/bin/pip install -e ../unseenet pytest   # a checkout of unseenet/unseenet
+.venv/bin/pip install --no-deps -e .
+.venv/bin/pytest
 ```
 
-Passphrases are read from `UNSEENET_GATEWAY_PASSPHRASE` (gateway key) and
-`UNSEENET_GATEWAY_GROUP_PASSPHRASE` (group key), or asked for. After
-`create-groups`, move the group key file off the gateway host: it is only
-needed again to change a group's manifest.
+The tests use synthetic articles only.
 
-**Key ripening** (UN-RFC 0025). Nodes take articles only from keys that have
-done a few minutes of work, which keeps throwaway keys from spamming. The
-gateway posts through the unseenet core, so ripening, the `Key-Ripening`
-header and postage are the same as in every client. `ripen` does the work
-for the gateway key (and with `--group-key` the group key) once at setup and
-publishes it: about 7-11 minutes each, one core. The chains are kept beside
-the key files as `<key file>.state.json` (public, nothing secret). While
-`run` runs, the gateway key ripens on to level 3, where it pays no extra
-postage: a few days on one core at low priority. The group key stays at
-level 0; it only signs manifests now and then. If a key was ripened and
-published elsewhere, the gateway takes its chain over instead of starting again.
-
-## Requests from other networks
-
-A source can ask to be gatewayed. On Matrix, a room asks by inviting the
-gateway's account; a room that is not in the configuration then becomes a
-**request in the operator's own Unseenet inbox** (`gateway.contact`, the personal
-inbox of `gateway.operator`): what the room is, who invited, and the group name
-it would get. The operator answers the post from any Unseenet client:
-
-```
-approve                 gateway it under the proposed name
-approve matrix.x.name   ... under another name
-decline <reason>        the room's invitation is declined with this reason
-```
-
-Only answers signed by the operator key count. With `auto_create = true` the
-gateway publishes the approved group itself (the group key must then be on the
-gateway host) and joins the room within a pass; otherwise approval only marks
-it, and the operator runs `create-groups`. Spaces, private and encrypted rooms
-are declined without asking. Each room is asked about once.
-
-## Several gateways for one group
-
-A gatewayed group can have several gateways (UN-RFC 0038), so it does not
-depend on one host. They share the work by turns: each takes a rank from its
-key, the first imports and exports at once, the next fills in what is still
-missing after `stagger` seconds (300 unless the manifest says otherwise), and
-so on. Nothing is sent twice: a gateway skips messages another has imported
-and submissions another has exported. If a gateway stops, the others go on.
-
-People decide who takes part. To help serve a group another gateway runs:
-
-1. The room invites this gateway's account too.
-2. The operator approves the request with the group's full Group ID instead of
-   a name (`approve matrix.matrix-org.room@<fingerprint>`), or configures the
-   room with `rooms = [{room = "#room:server", group = "<Group ID>"}]`.
-3. This gateway sends a join request to the owning gateway, whose operator gets
-   it in their inbox, with whether the new account is in the room.
-   `approve` there publishes a new manifest with both gateways
-   (the owner needs `auto_create`).
-
-Until the manifest lists it, the joining gateway writes nothing in the group.
-Every gateway announces itself in the directory `unseenet.gateways` (name,
-operator, accounts to invite, groups served); a group stays active while one of
-its gateways announces it.
-
-## Writing an adapter
+### Writing an adapter
 
 Usenet, Nostr and Matrix are reference adapters, not the limit: an adapter for
 another network can be written by anyone and live in its own package;
@@ -211,17 +243,6 @@ This is all the documentation for adapter authors so far: the contract in
 still change before Unseenet 1.0, and fuller documentation will follow once
 it has settled.
 
-## Development
-
-```
-python3 -m venv .venv
-.venv/bin/pip install -e ../unseenet pytest   # a checkout of unseenet/unseenet
-.venv/bin/pip install --no-deps -e .
-.venv/bin/pytest
-```
-
-The tests use synthetic articles only.
-
 ## Versions and releases
 
 Versions follow [semantic versioning](https://semver.org/) on the same
@@ -240,16 +261,14 @@ the tests, publishes to PyPI (trusted publishing) and makes the GitHub release.
 
 ## Part of Unseenet
 
-Unseenet is made in several repositories, each released on its own:
-
 | Repository | What it is |
 |---|---|
 | [unseenet](https://github.com/unseenet/unseenet) | The protocol (UN-RFCs), the core library, the node and the command-line client |
-| [unseenet-tui](https://github.com/unseenet/unseenet-tui) | The terminal client (moving here from unseenet, unseenet#548) |
+| [unseenet-tui](https://github.com/unseenet/unseenet-tui) | The terminal client |
 | [unseenet-gui](https://github.com/unseenet/unseenet-gui) | The graphical client - in a window, booted, or in a browser |
-| [unseenet-portable](https://github.com/unseenet/unseenet-portable) | Builds the portable clients, Terminal and Graphical, with Tor inside (unseenet#549) |
-| [unseenet-bootable](https://github.com/unseenet/unseenet-bootable) | Builds the bootable images, Terminal and Graphical, and later a node image (unseenet#550) |
-| [unseenet-docs](https://github.com/unseenet/unseenet-docs) | The site [unseenet.org](https://unseenet.org), gathering the docs of every repository (unseenet#547) |
+| [unseenet-portable](https://github.com/unseenet/unseenet-portable) | Builds the portable clients, Terminal and Graphical, with Tor inside |
+| [unseenet-bootable](https://github.com/unseenet/unseenet-bootable) | Builds the bootable images, Terminal and Graphical |
+| [unseenet-docs](https://github.com/unseenet/unseenet-docs) | The site [unseenet.org](https://unseenet.org) |
 | [unseenet-entrance](https://github.com/unseenet/unseenet-entrance) | Web entrances: the graphical client in an ordinary browser |
 | [unseenet-gateway](https://github.com/unseenet/unseenet-gateway) | Gateways to other networks: Usenet, Nostr, Matrix |
 | [unseenet-bots](https://github.com/unseenet/unseenet-bots) | Bots that keep channels filled with current content |
@@ -260,4 +279,4 @@ Unseenet is made in several repositories, each released on its own:
 
 ## License
 
-Apache-2.0, like the rest of Unseenet.
+[Apache License 2.0](LICENSE). The Unseenet logo: CC BY 4.0.
