@@ -4,7 +4,7 @@ A gateway connects Unseenet to another network, so groups from there can be
 read and answered here, and an Unseenet group can, if its owner wants it,
 be read and answered from there. The software lives in its own repository,
 [unseenet/unseenet-gateway](https://github.com/unseenet/unseenet-gateway), and the rules every
-gateway follows are [UN-RFC 0023](spec/un-rfc-0023.md), with one profile per
+gateway follows are [UN-RFC 0023](https://unseenet.org/spec/un-rfc-0023/), with one profile per
 network.
 
 !!! warning "Pre-alpha, lab only"
@@ -18,10 +18,10 @@ that network, so you can always see where a group comes from:
 
 | Network | In Unseenet | Profile | State |
 |---------|-------------|---------|-------|
-| Usenet | `usenet.*`, e.g. `usenet.comp.misc` | [UN-RFC 0024](spec/un-rfc-0024.md) | import, in the lab |
-| Nostr groups (NIP-29) | `nostr.*` | [UN-RFC 0026](spec/un-rfc-0026.md) | import, export and portals, in the lab |
+| Usenet | `usenet.*`, e.g. `usenet.comp.misc` | [UN-RFC 0024](https://unseenet.org/spec/un-rfc-0024/) | import, in the lab |
+| Nostr groups (NIP-29) | `nostr.*` | [UN-RFC 0026](https://unseenet.org/spec/un-rfc-0026/) | import, export and portals, in the lab |
 | FidoNet | `fido.*` | - | planned |
-| Matrix rooms (public, unencrypted) | `matrix.*`, e.g. `matrix.matrix-org.python` | [UN-RFC 0037](spec/un-rfc-0037.md) (draft) | import and export, tested against Synapse |
+| Matrix rooms (public, unencrypted) | `matrix.*`, e.g. `matrix.matrix-org.python` | [UN-RFC 0037](https://unseenet.org/spec/un-rfc-0037/) (draft) | import and export, tested against Synapse |
 
 Each gatewayed group is an ordinary **moderated** group whose moderator is
 the gateway, so nodes and clients carry it without knowing anything about
@@ -56,7 +56,7 @@ never gatewayed.
 ### More than one gateway
 
 A room can invite several gateways, so it does not depend on one host
-([UN-RFC 0038](spec/un-rfc-0038.md)). The first gateway creates the group. A
+([UN-RFC 0038](https://unseenet.org/spec/un-rfc-0038/)). The first gateway creates the group. A
 second one asks the group's owner to join. Once the owner approves, both
 are listed in the group, and they take turns: messages are carried once,
 by whichever gateway's turn it is. If one stops, the others go on. A group
@@ -86,7 +86,7 @@ kept for years. That is a different promise, so:
 
 A gateway never learns or records who wrote an Unseenet post or where it
 came from - the same promise every node makes. It can stop a key; it cannot
-identify a person ([UN-RFC 0023](spec/un-rfc-0023.md) section 6.2).
+identify a person ([UN-RFC 0023](https://unseenet.org/spec/un-rfc-0023/) section 6.2).
 
 ## Running a gateway or writing an adapter
 
@@ -96,4 +96,4 @@ by anyone, in its own package, without changing the gateway. Setup and the
 adapter contract are in the
 [gateway's README](https://github.com/unseenet/unseenet-gateway#writing-an-adapter).
 A new network also needs a profile UN-RFC and its hierarchy reserved in the
-root list ([UN-RFC 0018](spec/un-rfc-0018.md)).
+root list ([UN-RFC 0018](https://unseenet.org/spec/un-rfc-0018/)).
