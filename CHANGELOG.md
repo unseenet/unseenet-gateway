@@ -10,6 +10,13 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **Reactions come in** (#32, UN-RFC 0048 section 9): Matrix `m.reaction`
+  annotations and Nostr kind 7 (`+`/empty as 👍, `-` as 👎) with one emoji, to
+  imported messages, become reactions carrying `Origin-From`, so each outside
+  person counts once; their redaction or deletion is a cancel. Other keys,
+  emoji the group does not take and reactions to messages not imported are
+  dropped.
+
 - **Imports are posted with the time of posting** (#41, UN-RFC 0049): `Date` is
   set again just before an import is signed - fetching its pictures may take a
   while - so nodes that refuse a `POST` more than an hour old take it; the other

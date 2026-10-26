@@ -25,7 +25,7 @@ from unseenet.core.article import Article
 from ..core.adapter import Feed, Incoming, Retraction, Source
 from ..core.state import State
 from .client import Matrix, MatrixError
-from .convert import ENCRYPTED, GATEWAY_NOTICE_KEY, MESSAGE, NETWORK, REDACTION, convert
+from .convert import ENCRYPTED, GATEWAY_NOTICE_KEY, MESSAGE, NETWORK, REACTION, REDACTION, convert
 
 log = logging.getLogger(__name__)
 PAGE = 100
@@ -187,7 +187,7 @@ class MatrixFeed(Feed):
         token, done = None, False
         for _ in range(self.max_pages):
             page = await self.matrix.messages(rid, start=token, limit=PAGE,
-                                              types=[MESSAGE, REDACTION, ENCRYPTED])
+                                              types=[MESSAGE, REDACTION, ENCRYPTED, REACTION])
             for ev in page.get("chunk", []):
                 if since is not None and ev.get("origin_server_ts", 0) < since:
                     done = True

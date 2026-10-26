@@ -19,8 +19,8 @@ from ..core.origin import origin_headers
 from .event import Event
 
 NETWORK = "nostr"
-THREAD, CHAT, COMMENT, DELETION = 11, 9, 1111, 5
-IMPORTED_KINDS = (THREAD, CHAT, COMMENT)
+THREAD, CHAT, COMMENT, DELETION, REACTION = 11, 9, 1111, 5, 7
+IMPORTED_KINDS = (THREAD, CHAT, COMMENT, REACTION)   # reactions: UN-RFC 0048 section 9
 FROM_UNSEENET_TAG = "unseenet"          # set on events a gateway exported
 MAX_SUBJECT = 256
 MAX_FROM = 128
@@ -162,8 +162,35 @@ def pictures_of(ev: Event) -> list[tuple[str, str]]:
     return list(out.items())[:4]
 
 
+def convert_reaction(ev: Event, *, group_id: str, id_map, name_of, now=None, takes=None) -> Article:
+    """A kind 7 reaction (NIP-25) -> an Unseenet reaction (UN-RFC 0048 section 9): one
+    emoji, or ``+``/empty as 👍 and ``-`` as 👎; to the event its last ``e`` tag names,
+    if that was imported; with ``Origin-From`` (the npub) so each person counts once.
+    An emoji the group does not take (``takes``) is dropped, not changed."""
+    from unseenet.core import reactions as rx
+    content = ev.content.strip()
+    emoji = {"": "👍", "+": "👍", "-": "👎"}.get(content, content)
+    if not rx.is_emoji(emoji):
+        raise Skip("reaction", "not one emoji")
+    if takes is not None and not takes(emoji):
+        raise Skip("reaction", "not in the group's set")
+    targets = [t[1] for t in ev.tags if len(t) > 1 and t[0] == "e"]
+    target = id_map(targets[-1]) if targets else None
+    if not target:
+        raise Skip("reaction", "to a message that was not imported")
+    author = name_of(ev.pubkey)
+    when = format_datetime(datetime.fromtimestamp(ev.created_at, timezone.utc))
+    art = rx.build(group_id, [], target, emoji,
+                   from_name=clean(author, MAX_FROM) if author else short_npub(ev.pubkey))
+    for name, value in origin_headers(NETWORK, ev.id, when, npub(ev.pubkey)):
+        art.headers.append((name, value))
+    art.headers.append(("Origin-Proof", ev.to_json()))
+    art.headers.append(("Nostr-Kind", str(REACTION)))
+    return art
+
+
 def convert(ev: Event, *, group_id: str, id_map, title_of, name_of,
-            now: datetime | None = None) -> Article:
+            now: datetime | None = None, takes=None) -> Article:
     """Build the unsigned Unseenet article for one verified group event.
 
     ``id_map(event_id)`` -> Unseenet Message-ID or None; ``title_of(event_id)``
@@ -174,6 +201,9 @@ def convert(ev: Event, *, group_id: str, id_map, title_of, name_of,
         raise Skip("kind", str(ev.kind))
     if is_from_unseenet(ev):
         raise Skip("loop", "came from Unseenet")
+    if ev.kind == REACTION:
+        return convert_reaction(ev, group_id=group_id, id_map=id_map, name_of=name_of,
+                                now=now, takes=takes)
     if not ev.content.strip():
         raise Skip("empty")
 
