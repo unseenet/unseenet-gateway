@@ -67,7 +67,7 @@ def test_from_falls_back_to_localpart_and_emote():
     (ev(msgtype="m.image", url="https://elsewhere/y.png"), "media"),   # only mxc://
     (ev(msgtype="m.file"), "media"),
     (ev(etype="m.room.encrypted"), "encrypted"),
-    (ev(etype="m.reaction"), "type"),
+    (ev(etype="m.sticker"), "type"),
     (ev("   "), "empty"),
     ({"type": "m.room.message", "event_id": "$r", "sender": "@a:x", "content": {}}, "redacted"),
     (ev(**{FROM_UNSEENET_KEY: MID}), "loop"),
