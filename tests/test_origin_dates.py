@@ -5,7 +5,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 
-from unseenet.core import origins
+import pytest
+
+origins = pytest.importorskip("unseenet.core.origins", reason="the core's 0.6 (UN-RFC 0049)")
 from unseenet.core.article import new_article, parse_date
 
 from unseenet_gateway.core.importer import Importer
