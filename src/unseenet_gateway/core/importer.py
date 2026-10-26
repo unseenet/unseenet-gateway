@@ -11,10 +11,10 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, fields
-from datetime import datetime
+from datetime import datetime, timezone
 
 from unseenet.core import crypto
-from unseenet.core.article import Article, new_article
+from unseenet.core.article import Article, format_date, new_article
 from unseenet.nntp import NNTPError
 
 from . import files as fl
@@ -105,6 +105,9 @@ class Importer:
                 log.info("%s %s skipped: %s", source.foreign, item.label, s)
                 continue
             blobs, extra_bits = await self._pictures(source, item, art)
+            # UN-RFC 0049 section 3.1: Date is the time of posting - fetching pictures may
+            # have taken a while - and the other network's date is in Origin-Date
+            art.set("Date", format_date(datetime.now(timezone.utc)))
             art.finalize(self.gateway, self.pow_bits)
             try:
                 result = await (self.node.post(art, blobs=blobs, extra_bits=extra_bits)
