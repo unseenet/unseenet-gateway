@@ -10,6 +10,11 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **Imported reactions take the group's set** (#45): the importer reads each
+  gatewayed group's reaction set from its manifest (kept an hour), and a Matrix or
+  Nostr reaction with an emoji the group does not take is dropped, not changed
+  (UN-RFC 0048 section 9).
+
 - **Reactions go out** (#32, UN-RFC 0048 section 9): in groups that export, the
   gateway shows *that* Unseenet readers reacted, never how many - its own
   `m.reaction` / kind 7 with an emoji on a message from Matrix or Nostr while at
