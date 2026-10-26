@@ -10,6 +10,13 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **Imports are posted with the time of posting** (#41, UN-RFC 0049): `Date` is
+  set again just before an import is signed - fetching its pictures may take a
+  while - so nodes that refuse a `POST` more than an hour old take it; the other
+  network's date stays in `Origin-Date`, which the core now reads, shows and
+  orders by, and history brought in late (Matrix backfill, a Usenet article
+  fetched days later) is *old on arrival*: it notifies nobody.
+
 ## [0.2.0] - 2026-10-25
 
 For unseenet 0.5 (`unseenet>=0.5,<0.6`); update the nodes first. Markdown and pictures come in from Matrix and NIP-29 groups, each network gets its default view, and several gateways can serve one Nostr or Usenet group.
