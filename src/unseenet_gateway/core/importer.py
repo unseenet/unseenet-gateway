@@ -9,6 +9,7 @@ imported messages the other network has since removed (section 4.5).
 from __future__ import annotations
 
 import logging
+import dataclasses
 import time
 from dataclasses import dataclass, fields
 from datetime import datetime, timezone
@@ -85,7 +86,26 @@ class Importer:
             art.body = (art.body.rstrip("\n") + "\n\n" + line + "\n").lstrip("\n")
         return blobs, bits
 
+    async def _reaction_set(self, group_id: str):
+        """The emoji the gatewayed group takes, from its manifest, kept an hour (#45)."""
+        from unseenet.core import reactions as rx
+        cache = self.__dict__.setdefault("_sets", {})
+        hit = cache.get(group_id)
+        if hit and time.time() - hit[0] < 3600:
+            return hit[1]
+        takes = None
+        try:
+            m = await self.node.manifest(group_id)
+        except (OSError, ConnectionError, ValueError):
+            m = None
+        if m is not None:
+            takes = rx.reaction_set(dict(m.raw)).takes
+        cache[group_id] = (time.time(), takes)
+        return takes
+
     async def run_source(self, source: Source) -> RunStats:
+        if source.takes is None and hasattr(self.node, "manifest"):
+            source = dataclasses.replace(source, takes=await self._reaction_set(source.group_id))
         st, net = RunStats(), self.feed.network
         delay = self.delay_for(source.group_id) if self.delay_for else 0.0
         now, hold_from = time.time(), None

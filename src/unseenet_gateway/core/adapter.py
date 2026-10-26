@@ -31,7 +31,7 @@ Writing an adapter for a new network:
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from unseenet.core import crypto
@@ -86,6 +86,9 @@ class Source:
     """One foreign group a feed reads in a pass."""
     foreign: str         # the group's name or id in the other network
     group_id: str        # the Unseenet group it is imported into
+    # the emoji the group takes, for imported reactions (UN-RFC 0048 section 9, #45):
+    # set by the importer from the group's manifest; None takes any single emoji
+    takes: Callable | None = field(default=None, compare=False, hash=False)
 
 
 @dataclass

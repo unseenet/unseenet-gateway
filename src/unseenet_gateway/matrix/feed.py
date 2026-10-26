@@ -219,7 +219,7 @@ class MatrixFeed(Feed):
         return convert(item.payload, group_id=source.group_id,
                        id_map=lambda eid: self.state.lookup(NETWORK, eid),
                        name_of=lambda uid: self.names.get((rid, uid)),
-                       gateway_user=self.matrix.user_id)
+                       gateway_user=self.matrix.user_id, takes=source.takes)
 
     async def media(self, source: Source, item: Incoming) -> list:
         """The picture of an ``m.image`` message, downloaded (gateway#26)."""

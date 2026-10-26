@@ -162,7 +162,7 @@ class NostrFeed(Feed):
     def convert(self, source: Source, item: Incoming) -> Article:
         return convert(item.payload, group_id=source.group_id,
                        id_map=lambda eid: self.state.lookup(NETWORK, eid),
-                       title_of=self.titles.get, name_of=self.names.get)
+                       title_of=self.titles.get, name_of=self.names.get, takes=source.takes)
 
     async def media(self, source: Source, item: Incoming) -> list:
         """The pictures a note in the group links to, fetched over Tor (gateway#26):
