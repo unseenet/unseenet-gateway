@@ -10,6 +10,13 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **Reactions go out** (#32, UN-RFC 0048 section 9): in groups that export, the
+  gateway shows *that* Unseenet readers reacted, never how many - its own
+  `m.reaction` / kind 7 with an emoji on a message from Matrix or Nostr while at
+  least one reader gives it, taken back (redaction / deletion) with the last.
+  Nothing for messages that did not come from that network; its own reactions
+  never come back in.
+
 - **Reactions come in** (#32, UN-RFC 0048 section 9): Matrix `m.reaction`
   annotations and Nostr kind 7 (`+`/empty as 👍, `-` as 👎) with one emoji, to
   imported messages, become reactions carrying `Origin-From`, so each outside
