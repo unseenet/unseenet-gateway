@@ -24,6 +24,7 @@ HTML_FORMAT = "org.matrix.custom.html"
 
 NETWORK = "matrix"
 MESSAGE, REDACTION, ENCRYPTED = "m.room.message", "m.room.redaction", "m.room.encrypted"
+REACTION = "m.reaction"            # an annotation: a reaction (UN-RFC 0048 section 9)
 TEXT_TYPES = ("m.text", "m.notice", "m.emote")
 PICTURE = "m.image"                 # a picture: its caption, and the picture (gateway#26)
 FROM_UNSEENET_KEY = "org.unseenet.message_id"   # set on events a gateway exported
@@ -117,8 +118,42 @@ def is_from_unseenet(ev: dict, gateway_user: str | None = None) -> bool:
 
 # --- conversion -----------------------------------------------------------------
 
+def convert_reaction(ev: dict, *, group_id: str, id_map, name_of, gateway_user=None,
+                     now: datetime | None = None, takes=None) -> Article:
+    """An ``m.reaction`` annotation with one emoji key -> an Unseenet reaction (UN-RFC
+    0048 section 9), carrying ``Origin-From`` so each Matrix user counts once. Keys
+    that are not one emoji, emoji the group does not take (``takes``), and reactions to
+    messages not imported are dropped."""
+    from unseenet.core import reactions as rx
+    if is_from_unseenet(ev, gateway_user):
+        raise Skip("loop", "came from Unseenet")
+    rel = (ev.get("content") or {}).get("m.relates_to") or {}
+    if rel.get("rel_type") != "m.annotation":
+        raise Skip("syntax", "not an annotation")
+    key = rel.get("key")
+    if not isinstance(key, str) or not rx.is_emoji(key.strip()):
+        raise Skip("reaction", "not one emoji")
+    emoji = key.strip()
+    if takes is not None and not takes(emoji):
+        raise Skip("reaction", "not in the group's set")
+    target = id_map(rel.get("event_id")) if rel.get("event_id") else None
+    if not target:
+        raise Skip("reaction", "to a message that was not imported")
+    sender = ev.get("sender", "")
+    author = name_of(sender)
+    ts = ev.get("origin_server_ts")
+    when = format_datetime(datetime.fromtimestamp(ts / 1000, timezone.utc)) \
+        if isinstance(ts, int) else None
+    art = rx.build(group_id, [], target, emoji,
+                   from_name=clean(author, MAX_FROM) if author else clean(localpart(sender), MAX_FROM))
+    for name, value in origin_headers(NETWORK, ev.get("event_id", ""), when, sender):
+        art.headers.append((name, value))
+    art.headers.append(("Matrix-Room", ev.get("room_id", "")))
+    return art
+
+
 def convert(ev: dict, *, group_id: str, id_map, name_of, gateway_user: str | None = None,
-            now: datetime | None = None) -> Article:
+            now: datetime | None = None, takes=None) -> Article:
     """Build the unsigned Unseenet article for one event from a public room.
 
     ``id_map(event_id)`` -> Unseenet Message-ID or None; ``name_of(user_id)``
@@ -127,6 +162,9 @@ def convert(ev: dict, *, group_id: str, id_map, name_of, gateway_user: str | Non
     etype = ev.get("type")
     if etype == ENCRYPTED:
         raise Skip("encrypted")
+    if etype == REACTION:
+        return convert_reaction(ev, group_id=group_id, id_map=id_map, name_of=name_of,
+                                gateway_user=gateway_user, now=now, takes=takes)
     if etype != MESSAGE:
         raise Skip("type", str(etype))
     if is_from_unseenet(ev, gateway_user):
