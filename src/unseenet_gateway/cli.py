@@ -258,10 +258,14 @@ def make_exporter(cfg: dict, ads: list[Adapter], gateway, state: State, node: No
                 targets[gid] = (ad.network, send)
     if not targets:
         return None
-    return Exporter(state=state, node=node, gateway=gateway, targets=targets,
-                    min_pow=int(gw.get("export_min_pow", 20)),
-                    per_key_per_hour=int(gw.get("export_per_hour", 10)),
-                    delay_max=float(gw.get("export_delay_max", 600)))
+    from .core.reactions_out import ReactionMirror
+    exporter = Exporter(state=state, node=node, gateway=gateway, targets=targets,
+                        min_pow=int(gw.get("export_min_pow", 20)),
+                        per_key_per_hour=int(gw.get("export_per_hour", 10)),
+                        delay_max=float(gw.get("export_delay_max", 600)))
+    # reactions going out: that Unseenet readers reacted, not how many (UN-RFC 0048 9)
+    exporter.reactions = ReactionMirror(state=state, node=node, gateway=gateway, targets=targets)
+    return exporter
 
 
 async def _close(task) -> None:
@@ -348,6 +352,8 @@ async def cmd_import(cfg: dict, loop: bool) -> None:
         if exporter is not None:
             try:
                 log.info("export pass done: %s", await exporter.run())
+                if getattr(exporter, "reactions", None) is not None:
+                    log.info("reactions out: %s", await exporter.reactions.run())
             except Exception as exc:  # noqa: BLE001
                 log.warning("export pass failed: %s", exc)
                 await node.close()

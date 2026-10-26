@@ -122,6 +122,28 @@ class MatrixSender:
         self._sent.add(event_id)
         return event_id
 
+    async def react(self, group: str, event_id: str, emoji: str) -> str:
+        """The gateway's own reaction to a message from Matrix, while at least one
+        Unseenet reader gives that emoji (UN-RFC 0048 section 9); marked as coming from
+        Unseenet, so it is never imported back."""
+        rid = await self.room_id_of(self.rooms[group])
+        content = {"m.relates_to": {"rel_type": "m.annotation", "event_id": event_id, "key": emoji},
+                   FROM_UNSEENET_KEY: "reaction"}
+        try:
+            return await self.matrix.send(rid, content, txn_id(f"react-{event_id}-{emoji}"),
+                                          event_type="m.reaction")
+        except MatrixError as exc:
+            raise ExportError(str(exc)) from None
+
+    async def unreact(self, group: str, reaction_id: str) -> None:
+        """Take the gateway's reaction back when the last Unseenet reader does."""
+        rid = await self.room_id_of(self.rooms[group])
+        try:
+            await self.matrix.redact(rid, reaction_id, txn_id(f"unreact-{reaction_id}"),
+                                     reason="No reader in Unseenet gives it any more")
+        except MatrixError as exc:
+            raise ExportError(str(exc)) from None
+
     async def retract(self, art: Article, foreign_id: str) -> bool:
         """Take back an event this gateway sent, when the node refused the approved
         copy (#18): a redaction. An event another gateway sent (``already_there``) is

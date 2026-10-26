@@ -109,6 +109,24 @@ class NostrSender:
         self._sent.add(ev.id)
         return ev.id
 
+    async def react(self, group: str, event_id: str, emoji: str) -> str:
+        """The gateway's own kind 7 reaction (NIP-25) to an event from Nostr, while at
+        least one Unseenet reader gives that emoji (UN-RFC 0048 section 9); tagged as
+        coming from Unseenet, so it is never imported back."""
+        tags = [["e", event_id], ["h", self.groups[group]], [FROM_UNSEENET_TAG, "reaction"]]
+        ev = sign_event(self.secret, 7, emoji, tags)
+        ok, msg = await self.relay.publish(ev)
+        if not ok and not msg.startswith("duplicate"):
+            raise ExportError(f"reaction refused by {self.relay.url}: {msg}")
+        return ev.id
+
+    async def unreact(self, group: str, reaction_id: str) -> None:
+        """Take it back (NIP-09, kind 5) when the last Unseenet reader does."""
+        tags = [["e", reaction_id], ["h", self.groups[group]]]
+        ok, msg = await self.relay.publish(sign_event(self.secret, DELETION, "", tags))
+        if not ok:
+            raise ExportError(f"deletion refused by {self.relay.url}: {msg}")
+
     async def retract(self, art: Article, foreign_id: str) -> bool:
         """Take back an event this gateway sent, when the node refused the approved
         copy (#18): a NIP-09 deletion (kind 5) of our own event, in the same group."""
