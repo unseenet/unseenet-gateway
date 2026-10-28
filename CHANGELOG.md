@@ -10,6 +10,11 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **Raw 8-bit Usenet headers no longer stop the import** (#55): an article with an
+  unencoded 8-bit `From:` could not be written (`surrogates not allowed`), and the error
+  failed the whole pass, so the cursor never moved past it. Raw 8-bit text is read as
+  UTF-8 when it is, else Windows-1252, and a message that cannot be converted is skipped
+  (counted as `error`), never the pass.
 - **A long import leaves export and requests their turn** (#51): the passes run one
   after another, and the lab's Usenet import (24 groups) took hours per pass - no
   submission went out and no join request reached the operator meanwhile. An import
