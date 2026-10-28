@@ -14,7 +14,8 @@ several gateways per group.
   after another, and the lab's Usenet import (24 groups) took hours per pass - no
   submission went out and no join request reached the operator meanwhile. An import
   pass now starts no new group after `gateway.pass_seconds` (default 300; 0: no limit),
-  and the next pass begins with the group after the last one done.
+  and the next pass begins with the group after the last one done. Usenet, whose
+  cursor moves per article, may also stop inside a group and go on there next pass.
 - **Join requests and questions to the operator pay what the inbox asks** (#16): an inbox
   article was built with the desk's fixed postage, and a node that wanted more (an
   inbox's own minimum, a young key's) refused it every pass - `441 postage: need 24 bits`

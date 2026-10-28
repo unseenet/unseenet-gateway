@@ -50,6 +50,8 @@ class UsenetFeed(Feed):
             return max(low - 1, high - int(self.start[5:]))
         return high                                     # "new"
 
+    resumable = True        # the cursor moves per article: a pass may stop anywhere (#51)
+
     async def fetch(self, source: Source) -> AsyncIterator[Incoming]:
         group = source.foreign
         cursor = self.state.get_cursor(NETWORK, group)

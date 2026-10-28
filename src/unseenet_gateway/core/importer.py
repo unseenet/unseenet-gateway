@@ -59,6 +59,8 @@ class Importer:
         # the operator's desk their turn - 0 for no limit
         self.pass_seconds = pass_seconds
         self._next = 0              # the source the next pass begins with
+        self._deadline: float | None = None
+        self._cut = False           # the last source stopped for time, inside
         # pictures on imported messages, up to this size (0: none) - gateway#26
         self.pictures_max = pictures_max if fl.core_posts_files() else 0
         self.gateway, self.pow_bits = gateway, pow_bits
@@ -79,10 +81,16 @@ class Importer:
         if not sources:
             return total
         start, began = self._next % len(sources), time.monotonic()
+        self._deadline = began + self.pass_seconds if self.pass_seconds else None
         for i in range(len(sources)):
             k = (start + i) % len(sources)
             total.add(await self.run_source(sources[k]))
             self._next = k + 1
+            if self._cut:
+                self._next = k              # it stopped inside this one: go on there
+                log.info("%s: %s stopped for time, the rest next pass", self.label,
+                         sources[k].foreign)
+                break
             if (self.pass_seconds and i < len(sources) - 1
                     and time.monotonic() - began >= self.pass_seconds):
                 log.info("%s: %d of %d sources this pass, the rest next time",
@@ -131,7 +139,16 @@ class Importer:
         st, net = RunStats(), self.feed.network
         delay = self.delay_for(source.group_id) if self.delay_for else 0.0
         now, hold_from = time.time(), None
-        async for item in self.feed.fetch(source):
+        # a feed that keeps its cursor per message (Usenet) may stop inside a source when
+        # the pass's time is up; the others always run a source to its end (#51)
+        stoppable = getattr(self.feed, "resumable", False)
+        self._cut = False
+        items = self.feed.fetch(source)
+        async for item in items:
+            if stoppable and self._deadline is not None and time.monotonic() >= self._deadline:
+                self._cut = True
+                await items.aclose()          # now, not when it is collected
+                break
             if item.foreign_id and self.state.lookup(net, item.foreign_id):
                 st.duplicate += 1                    # before paying postage (or a peer's)
                 continue
