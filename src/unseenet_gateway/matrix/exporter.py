@@ -57,6 +57,7 @@ class MatrixSender:
         self.rooms = rooms               # Unseenet Group ID -> room alias or id
         self.room_id_of = room_id_of     # async: alias -> room id (the feed's cache)
         self._sent: set[str] = set()     # events this gateway sent, which it may take back
+        self._pictures: dict[str, list[str]] = {}   # text event -> its picture events
 
     async def _parent(self, rid: str, art: Article) -> dict | None:
         """The Matrix event this article answers, if it answers one we know."""
@@ -82,7 +83,9 @@ class MatrixSender:
                 break
         return None
 
-    async def send(self, art: Article) -> str:
+    async def send(self, art: Article, files=()) -> str:
+        """Send ``art`` to its room; its pictures (``files``: core/submissions.py
+        ``PlainFile``) follow the text as ``m.image`` events, in the same thread."""
         rid = await self.room_id_of(self.rooms[art.group])
         if await self.matrix.membership(rid) != "join":
             raise ExportError(f"not a member of {self.rooms[art.group]}")
@@ -120,6 +123,34 @@ class MatrixSender:
         except MatrixError as exc:
             raise ExportError(str(exc)) from None
         self._sent.add(event_id)
+        rel = content.get("m.relates_to")
+        if isinstance(rel, dict) and rel.get("rel_type") == "m.thread":
+            follow = {"rel_type": "m.thread", "event_id": rel["event_id"],
+                      "is_falling_back": True, "m.in_reply_to": {"event_id": event_id}}
+        else:
+            follow = {"m.in_reply_to": {"event_id": event_id}}
+        pictures = []
+        for i, f in enumerate(files):
+            try:
+                mxc = await self.matrix.upload(f.octets, f.type, f.name or f"picture-{i + 1}")
+                info: dict = {"mimetype": f.type, "size": len(f.octets)}
+                if f.dim:
+                    info["w"], info["h"] = int(f.dim[0]), int(f.dim[1])
+                pic = {"msgtype": "m.image", "body": f.alt or f.name or "picture",
+                       "url": mxc, "info": info, "m.relates_to": follow,
+                       FROM_UNSEENET_KEY: f"{art.message_id} file {i + 1}"}
+                if f.name:
+                    pic["filename"] = f.name
+                pictures.append(await self.matrix.send(
+                    rid, pic, txn_id(f"{art.message_id}-file-{i + 1}")))
+            except MatrixError as exc:
+                # the text is there already: a picture that will not go is a gap, not a
+                # reason to leave the post out of Unseenet
+                log.warning("picture %d of %s not sent to %s: %s", i + 1, art.message_id,
+                            self.rooms[art.group], exc)
+        if pictures:
+            self._sent.update(pictures)
+            self._pictures[event_id] = pictures
         return event_id
 
     async def react(self, group: str, event_id: str, emoji: str) -> str:
@@ -151,11 +182,19 @@ class MatrixSender:
         if foreign_id not in self._sent:
             return False
         rid = await self.room_id_of(self.rooms[art.group])
+        why = "Not accepted in Unseenet, so taken back by the gateway"
         try:
             await self.matrix.redact(rid, foreign_id, "retract-" + txn_id(art.message_id),
-                                     reason="Not accepted in Unseenet, so taken back by the gateway")
+                                     reason=why)
         except MatrixError as exc:
             log.warning("could not take back %s in %s: %s", foreign_id, self.rooms[art.group], exc)
             return False
         self._sent.discard(foreign_id)
+        for i, pic in enumerate(self._pictures.pop(foreign_id, [])):
+            try:
+                await self.matrix.redact(rid, pic, f"retract-{txn_id(art.message_id)}-{i + 1}",
+                                         reason=why)
+            except MatrixError as exc:
+                log.warning("could not take back picture %s: %s", pic, exc)
+            self._sent.discard(pic)
         return True

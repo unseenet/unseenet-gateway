@@ -32,6 +32,14 @@ def signature_line(art: Article) -> str:
     return f"\n\n— {art.get('From', 'anonymous')} ({fp}), on Unseenet"
 
 
+def pictures_line(art: Article) -> str:
+    """Nostr groups carry no files: say that the post has pictures in Unseenet."""
+    n = len((art.get("Blobs") or "").split())
+    if not n:
+        return ""
+    return "\n\n[" + ("1 picture" if n == 1 else f"{n} pictures") + " on Unseenet]"
+
+
 class NostrSender:
     def __init__(self, *, relay: Relay, secret: bytes, state: State,
                  groups: dict[str, str], public_url: str | None = None):
@@ -84,7 +92,7 @@ class NostrSender:
             log.info("%s is already in %s as %s", art.message_id, group, there)
             return there
         parent = await self._parent(art)
-        content = art.body.rstrip("\n") + signature_line(art)
+        content = art.body.rstrip("\n") + pictures_line(art) + signature_line(art)
         tags = [["h", group], [FROM_UNSEENET_TAG, art.message_id]]
         if parent is None:
             kind = THREAD
