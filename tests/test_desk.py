@@ -169,3 +169,47 @@ def test_approved_rooms_are_carried(tmp_path):
            "matrix": {"homeserver": "https://x", "user": "@gw:x", "rooms": []}}
     names = [c.name for c in MatrixAdapter(cfg, d).carried()]
     assert names == ["matrix.x.new"]
+
+
+class Dear(Inbox):
+    """An inbox that wants more postage than the desk pays at first (gateway#16)."""
+
+    def __init__(self, need):
+        super().__init__()
+        self.need, self.tries = need, []
+
+    async def post(self, art):
+        from unseenet.nntp import NNTPError
+        self.tries.append(art.proven_pow())
+        if art.proven_pow() < self.need:
+            raise NNTPError(441, f"postage: need {self.need} bits")
+        return await super().post(art)
+
+
+def test_a_join_request_pays_what_the_inbox_asks(tmp_path):
+    import asyncio
+    node = Dear(10)
+    d = desk(tmp_path, node)
+    to = crypto.Identity.generate()
+    assert asyncio.run(d.request_join(group="test.usenet.alt.test@abcdefghijklmnop",
+                                      to_inbox=personal_inbox_id(to.public_key),
+                                      to_key=to.public_key, network="usenet",
+                                      source="alt.test", account=""))
+    assert len(node.tries) == 2 and node.tries[1] >= 10        # built anew with 10 bits
+    assert sum(len(v) for v in node.groups.values()) == 1
+
+
+def test_it_gives_up_when_asked_for_no_more(tmp_path):
+    import asyncio
+    import pytest
+    from unseenet.nntp import NNTPError
+    node = Dear(10)
+    d = desk(tmp_path, node)
+    d.pow_bits = 12                                             # already more: not "postage"
+    async def refuse(art):
+        raise NNTPError(441, "permission: no")
+    node.post = refuse
+    to = crypto.Identity.generate()
+    with pytest.raises(NNTPError):
+        asyncio.run(d.request_join(group="g@abcdefghijklmnop", to_inbox=personal_inbox_id(to.public_key),
+                                   to_key=to.public_key, network="usenet", source="x", account=""))

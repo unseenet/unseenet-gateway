@@ -10,6 +10,14 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **Join requests and questions to the operator pay what the inbox asks** (#16): an inbox
+  article was built with the desk's fixed postage, and a node that wanted more (an
+  inbox's own minimum, a young key's) refused it every pass - `441 postage: need 24 bits`
+  in the lab, so a second gateway could never ask to serve a Usenet group. It is now
+  built again with the bits the node names, once.
+- **Usenet with several gateways** (#16, UN-RFC 0038, UN-RFC 0024 6.1): tested - joining
+  another gateway's group in `[usenet] groups`, and the same Usenet article imported once.
+
 - **Imported reactions take the group's set** (#45): the importer reads each
   gatewayed group's reaction set from its manifest (kept an hour), and a Matrix or
   Nostr reaction with an emoji the group does not take is dropped, not changed
