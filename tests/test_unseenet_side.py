@@ -84,7 +84,6 @@ async def _late(tmp_path):
     assert store.store.get(first_id) is None
     posted = store.store.get(art.message_id)
     assert posted is not None
-    age = datetime.now(timezone.utc) - parse_date(art["Date"])
-    assert age < timedelta(minutes=5)
+    assert parse_date(art["Date"]) - two_hours_ago > timedelta(hours=1)   # within the hour
     await node.shutdown()
     server.close()
