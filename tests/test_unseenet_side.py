@@ -54,6 +54,9 @@ def test_an_import_that_waited_over_an_hour_is_posted_with_a_new_date(tmp_path):
     ``441 date``; the gateway's session gives it the time of posting, signs it again and
     posts once more - the article is changed in place, so the importer remembers the
     Message-ID that was posted."""
+    from unseenet.client.session import posting
+    if not hasattr(posting, "_too_old"):
+        pytest.skip("this core's nodes take any Date in the past (before UN-RFC 0049)")
     asyncio.run(_late(tmp_path))
 
 
