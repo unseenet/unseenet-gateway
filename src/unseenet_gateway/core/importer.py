@@ -47,10 +47,18 @@ def cancel_article(group_id: str, target_mid: str, reason: str, *,
                        extra=[("Control", f"cancel {target_mid}")], now=now)
 
 
+PASS_SECONDS = 300          # an importer pass starts no new group after this (#51)
+
+
 class Importer:
     def __init__(self, *, feed: Feed, state: State, node: Node, gateway: crypto.Identity,
-                 pow_bits: int, delay_for=None, pictures_max: int = 0):
+                 pow_bits: int, delay_for=None, pictures_max: int = 0,
+                 pass_seconds: float = PASS_SECONDS):
         self.feed, self.state, self.node = feed, state, node
+        # the passes run one after another (cli.py): a long import must leave export and
+        # the operator's desk their turn - 0 for no limit
+        self.pass_seconds = pass_seconds
+        self._next = 0              # the source the next pass begins with
         # pictures on imported messages, up to this size (0: none) - gateway#26
         self.pictures_max = pictures_max if fl.core_posts_files() else 0
         self.gateway, self.pow_bits = gateway, pow_bits
@@ -63,9 +71,23 @@ class Importer:
         return self.feed.label or self.feed.network
 
     async def run(self) -> RunStats:
+        """One pass over the feed's sources, starting where the last one stopped and
+        starting no new source after ``pass_seconds`` (#51): a source is always run to
+        the end of its own pass (its cursor and ``max_per_run`` bound it)."""
         total = RunStats()
-        for source in self.feed.sources():
-            total.add(await self.run_source(source))
+        sources = list(self.feed.sources())
+        if not sources:
+            return total
+        start, began = self._next % len(sources), time.monotonic()
+        for i in range(len(sources)):
+            k = (start + i) % len(sources)
+            total.add(await self.run_source(sources[k]))
+            self._next = k + 1
+            if (self.pass_seconds and i < len(sources) - 1
+                    and time.monotonic() - began >= self.pass_seconds):
+                log.info("%s: %d of %d sources this pass, the rest next time",
+                         self.label, i + 1, len(sources))
+                break
         return total
 
     async def _pictures(self, source: Source, item, art: Article) -> tuple[list, int]:

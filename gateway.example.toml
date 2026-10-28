@@ -30,6 +30,7 @@ pow_bits = 18      # postage paid per imported article (the node's minimum)
                                 # to - fetched only over Tor), up to this many octets;
                                 # needs unseenet 0.5 and nodes that carry files (UN-RFC 0027)
 interval = 60      # seconds between passes in `run`
+pass_seconds = 300 # an import pass starts no new group after this (0: no limit), so export and requests get their turn
 
 [unseenet]
 node       = "f6vnchi5p7ll4yn6yot6cz4ohzuxy3uhc3kztafuwn3zlyoup6tn64qd.onion:119"

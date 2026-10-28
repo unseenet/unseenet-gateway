@@ -35,7 +35,7 @@ from .core.adapter import Adapter
 from .core.cooperation import Watcher
 from .core.desk import JOIN, Desk
 from .core.directory import DEFAULT_DIRECTORY, Announcer
-from .core.importer import Importer
+from .core.importer import PASS_SECONDS, Importer
 from .core.portal import Portal
 from .core.registry import adapters
 from .core.state import State
@@ -323,7 +323,8 @@ async def cmd_import(cfg: dict, loop: bool) -> None:
         tasks: list = [watcher]
         pictures = int(gw.get("pictures_max_size", 0))     # gateway#26
         tasks += [Importer(feed=f, state=state, node=node, gateway=gateway,
-                           pow_bits=pow_bits, delay_for=watcher.delay, pictures_max=pictures)
+                           pow_bits=pow_bits, delay_for=watcher.delay, pictures_max=pictures,
+                           pass_seconds=float(gw.get("pass_seconds", PASS_SECONDS)))
                   for f in feeds]
         tasks += make_portals(cfg, gateway, state, node, feeds)
         if gw.get("directory", DEFAULT_DIRECTORY):       # "" turns announcing off
