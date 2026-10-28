@@ -98,6 +98,34 @@ class Matrix:
     async def download(self, mxc: str, limit: int) -> bytes:
         return await asyncio.to_thread(self._download, mxc, limit)
 
+    def _upload(self, data: bytes, content_type: str, filename: str = "") -> str:
+        """Put ``data`` in the server's media store and return its ``mxc://`` URI."""
+        url = f"{self.base}/_matrix/media/v3/upload"
+        if filename:
+            url += "?" + urllib.parse.urlencode({"filename": filename})
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Content-Type", content_type or "application/octet-stream")
+        req.add_header("Accept", "application/json")
+        if self.token:
+            req.add_header("Authorization", f"Bearer {self.token}")
+        try:
+            with self.opener.open(req, timeout=self.timeout) as resp:
+                raw = resp.read()
+        except urllib.error.HTTPError as exc:
+            try:
+                err = json.loads(exc.read().decode() or "{}")
+            except ValueError:
+                err = {}
+            raise MatrixError(exc.code, err.get("errcode", "M_UNKNOWN"), err.get("error", "")) \
+                from None
+        mxc = json.loads(raw.decode() or "{}").get("content_uri", "")
+        if not isinstance(mxc, str) or not mxc.startswith("mxc://"):
+            raise MatrixError(502, "M_UNKNOWN", "upload gave no content_uri")
+        return mxc
+
+    async def upload(self, data: bytes, content_type: str, filename: str = "") -> str:
+        return await asyncio.to_thread(self._upload, data, content_type, filename)
+
     async def close(self) -> None:
         pass
 

@@ -17,6 +17,13 @@ several gateways per group.
   built again with the bits the node names, once.
 - **Usenet with several gateways** (#16, UN-RFC 0038, UN-RFC 0024 6.1): tested - joining
   another gateway's group in `[usenet] groups`, and the same Usenet article imported once.
+- **Pictures go out too** (#26, UN-RFC 0027 section 5.3): a submitted post with pictures
+  is exported with them. The gateway fetches the encrypted files sent with the
+  submission, decrypts them and checks that they are exactly the blobs the post names
+  (refused otherwise, as a moderator's client does). On Matrix each picture is uploaded
+  and sent as an `m.image` after the text, in the same thread, and taken back with it.
+  On Nostr, which carries no files, the note says how many pictures are on Unseenet.
+  The approved copy is posted with its plain files.
 
 - **Imported reactions take the group's set** (#45): the importer reads each
   gatewayed group's reaction set from its manifest (kept an hour), and a Matrix or

@@ -12,6 +12,7 @@ through Tor and a one-time key, and nothing here records how they arrived.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import random
 import time
@@ -35,6 +36,30 @@ SUBMISSION_TYPE = "message/unseenet"
 
 class Refused(Exception):
     """A submission the gateway will not export; the reason is for the log."""
+
+
+class NotYet(Exception):
+    """A submission that cannot go out yet (its files are still on their way)."""
+
+
+@dataclass(frozen=True)
+class PlainFile:
+    """A file a submitted post carries (UN-RFC 0027 section 5.3), decrypted and checked
+    against the blob the post names: what the other network gets and the node stores."""
+    blob: str
+    octets: bytes
+    type: str
+    name: str = ""
+    alt: str = ""
+    dim: tuple | None = None
+
+
+def takes_files(send) -> bool:
+    """Whether an adapter's ``send`` can carry files (``send(art, files=...)``)."""
+    try:
+        return "files" in inspect.signature(send).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 @dataclass
@@ -66,6 +91,7 @@ class Exporter:
         self.watcher = watcher          # core/cooperation.py, when other gateways may share
         self.inbox = personal_inbox_id(gateway.public_key)
         self._manifests: dict[str, tuple[Manifest | None, float]] = {}
+        self._files: dict[str, tuple[list[dict], dict]] = {}   # Message-ID -> (shown, keys)
         self.state.db.execute("CREATE TABLE IF NOT EXISTS exports ("
                               "author TEXT NOT NULL, at INTEGER NOT NULL)")
 
@@ -77,6 +103,7 @@ class Exporter:
             return []
         after = self.state.get_cursor("unseenet", self.inbox) or (low - 1)
         out = []
+        files: dict[str, tuple[list[dict], dict]] = {}
         for n in range(max(after + 1, low), high + 1):
             raw = await c.article(str(n))
             if raw is None:
@@ -95,7 +122,55 @@ class Exporter:
             except ArticleError as exc:
                 log.info("submission #%d unusable: %s", n, exc)
                 continue
+            if sub.get("Blobs") and outer.get("Blobs"):     # files sent with it (0027 5.3)
+                from unseenet.core import blobs as bl
+                files[sub.message_id] = bl.inner_attachments(outer, inner.headers)
             out.append((n, sub))
+        self._files = files
+        return out
+
+    async def _plain_files(self, art: Article) -> list[PlainFile]:
+        """The files a submitted post names, as sent with the submission: fetched from
+        the node, decrypted with their keys and checked to be exactly the blobs the post
+        names (as a moderator's client does, UN-RFC 0027 section 5.3). ``Refused`` when
+        they are not; ``NotYet`` while the node is still fetching one."""
+        from unseenet.core import blobs as bl
+        try:
+            named = dict(bl.parse_blobs(art))
+        except ArticleError as exc:
+            raise Refused(f"it names its files wrongly: {exc}") from exc
+        if not named:
+            return []
+        shown, keys = self._files.get(art.message_id, ([], {}))
+        if not keys:
+            raise Refused("its files did not come with it")
+        c = await self.node._conn()
+        plain: dict[str, bytes] = {}
+        for a in shown:
+            try:
+                cipher = await c.blob(a["blob"])
+            except NNTPError as exc:
+                if exc.code == 436:
+                    raise NotYet("the node is still fetching a file") from exc
+                raise Refused(f"its file could not be had: {exc}") from exc
+            if cipher is None:
+                raise Refused("its files are not on the node")
+            if bl.blob_id(cipher) != a["blob"] or not bl.fits_padding(len(cipher), a["size"]):
+                raise Refused("the node sent another file than the submission names")
+            try:
+                octets = bl.decrypt_file(keys[a["blob"]], cipher, a["size"])
+            except (KeyError, ValueError) as exc:
+                raise Refused("a file does not open with its key") from exc
+            plain[bl.blob_id(octets)] = octets
+        if set(plain) != set(named) or any(len(plain[b]) != n for b, n in named.items()):
+            raise Refused("the files sent with it are not the ones it names")
+        out = []
+        for a in bl.shown_attachments(art.headers):
+            if a["blob"] in plain:
+                out.append(PlainFile(a["blob"], plain.pop(a["blob"]), a["type"],
+                                     a.get("name") or "", a.get("alt") or "", a.get("dim")))
+        if plain:
+            raise Refused("its Blobs and Attachment headers do not agree")
         return out
 
     def _check(self, art: Article) -> str:
@@ -214,14 +289,30 @@ class Exporter:
                 self._done(art.message_id)
                 continue
             try:
-                foreign_id = await self.targets[art.group][1](art)
+                files = await self._plain_files(art)
+            except NotYet:
+                st.waiting += 1
+                first_waiting = n if first_waiting is None else min(first_waiting, n)
+                continue
+            except Refused as r:
+                st.refused += 1
+                log.info("submission %s refused: %s", art.message_id, r)
+                self._done(art.message_id)
+                continue
+            send = self.targets[art.group][1]
+            try:
+                foreign_id = await (send(art, files=files) if files and takes_files(send)
+                                    else send(art))
             except Exception as exc:  # noqa: BLE001  (refused by the other network)
                 st.failed += 1
                 log.warning("%s refused %s: %s", net, art.message_id, exc)
                 self._done(art.message_id)
                 continue
             try:                                         # posted only after the other side took it
-                await self.node.post(approved)
+                if files:
+                    await self.node.post(approved, blobs=[(f.blob, f.octets) for f in files])
+                else:
+                    await self.node.post(approved)
             except NNTPError as exc:
                 # The pre-check cannot see the node's own rules (its postage, blocks):
                 # take the message back on the other network rather than leave it

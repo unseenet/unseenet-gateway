@@ -104,6 +104,8 @@ class Node:
         if mine is not None or self._keys:
             return await self._post_by_session(art, mine[0] if mine else None,
                                                blobs=blobs, extra_bits=extra_bits)
+        if blobs:
+            raise NNTPError(441, "files are posted through a session, and this node has none")
         for attempt in (1, 2):
             try:
                 c = await self._conn()

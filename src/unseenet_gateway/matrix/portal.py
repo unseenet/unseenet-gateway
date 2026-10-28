@@ -121,5 +121,5 @@ class MatrixCounterpart(Counterpart):
                 except MatrixError as exc:
                     log.warning("portal %s: cannot invite %s: %s", self.alias, a, exc)
 
-    async def send(self, art: Article) -> str:
-        return await self.sender.send(art)
+    async def send(self, art: Article, files=()) -> str:
+        return await self.sender.send(art, files)
