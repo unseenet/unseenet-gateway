@@ -159,7 +159,10 @@ class Exporter:
             if bl.blob_id(cipher) != a["blob"] or (fits and not fits(len(cipher), a["size"])):
                 raise Refused("the node sent another file than the submission names")
             try:
-                octets = bl.decrypt_file(keys[a["blob"]], cipher, a["size"])
+                try:
+                    octets = bl.decrypt_file(keys[a["blob"]], cipher, a["size"])
+                except TypeError:                         # a released core: no padding size
+                    octets = bl.decrypt_file(keys[a["blob"]], cipher)[:a["size"]]
             except (KeyError, ValueError) as exc:
                 raise Refused("a file does not open with its key") from exc
             plain[bl.blob_id(octets)] = octets
