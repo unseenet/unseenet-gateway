@@ -177,17 +177,34 @@ class Desk:
                     "  approve <name>       - gateway it under another name, or join <name@fp>\n"
                     "  decline <reason>     - do not gateway it; the reason is shown to them\n\n"
                     "Only answers signed by the operator key in gateway.toml count.")
-        art = inbox_article(self.contact, self.operator, from_name="Unseenet gateway",
-                            subject=f"Gateway request: {title}", body=body,
-                            sender=self.gateway, reply_inbox=self.inbox,
-                            pow_bits=self.pow_bits)
-        await self.node.post(art)
+        art = await self._post_inbox(lambda bits: inbox_article(
+            self.contact, self.operator, from_name="Unseenet gateway",
+            subject=f"Gateway request: {title}", body=body, sender=self.gateway,
+            reply_inbox=self.inbox, pow_bits=bits))
         self.state.db.execute("INSERT INTO desk VALUES (?,?,?,?,?,?,?,?)",
                               (network, source, "pending", name, art.message_id, None, detail,
                                int(time.time())))
         self.state.db.commit()
         log.info("asked the operator about %s %s (%s)", network, source, art.message_id)
         return True
+
+    async def _post_inbox(self, make) -> Article:
+        """Post an inbox article built by ``make(bits)``, with this desk's postage - and,
+        if the node asks for more ("441 postage: need N bits": an inbox's own minimum, or
+        a young key's), once more with that. Its outer signature is a one-time key's, so
+        it is built anew rather than signed again (gateway#16)."""
+        bits = self.pow_bits
+        for attempt in (1, 2):
+            art = make(bits)
+            try:
+                await self.node.post(art)
+                return art
+            except NNTPError as exc:
+                need = re.search(r"need (\d+) bits", str(exc))
+                if attempt == 2 or not need or int(need.group(1)) <= bits:
+                    raise
+                bits = int(need.group(1))
+        raise AssertionError("unreachable")
 
     async def request_join(self, *, group: str, to_inbox: str, to_key: bytes, network: str,
                            source: str, account: str) -> bool:
@@ -199,12 +216,10 @@ class Desk:
         body = json.dumps({"group": group, "network": network, "source": source,
                            "account": account, "operator": self.operator_text,
                            "contact": self.contact}, sort_keys=True)
-        art = inbox_article(to_inbox, to_key, from_name="Unseenet gateway",
-                            subject=f"Join request: {group}", body=body + "\n",
-                            sender=self.gateway, reply_inbox=self.inbox,
-                            content_type="application/json", pow_bits=self.pow_bits,
-                            extra=[("Gateway-Request", JOIN)])
-        await self.node.post(art)
+        await self._post_inbox(lambda bits: inbox_article(
+            to_inbox, to_key, from_name="Unseenet gateway", subject=f"Join request: {group}",
+            body=body + "\n", sender=self.gateway, reply_inbox=self.inbox,
+            content_type="application/json", pow_bits=bits, extra=[("Gateway-Request", JOIN)]))
         self.state.set_cursor("unseenet", flag, int(time.time()))
         log.info("asked %s to let this gateway serve %s too", to_inbox, group)
         return True
