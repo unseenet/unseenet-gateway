@@ -47,3 +47,46 @@ async def _imports(tmp_path):
     assert (tmp_path / "gateway.key.state.json").exists()
     await node.shutdown()
     server.close()
+
+
+def test_an_import_that_waited_over_an_hour_is_posted_with_a_new_date(tmp_path):
+    """UN-RFC 0049 3.2 and 3.4 (#38): a node refuses a Date more than an hour old with
+    ``441 date``; the gateway's session gives it the time of posting, signs it again and
+    posts once more - the article is changed in place, so the importer remembers the
+    Message-ID that was posted."""
+    from unseenet.client.session import posting
+    if not hasattr(posting, "_too_old"):
+        pytest.skip("this core's nodes take any Date in the past (before UN-RFC 0049)")
+    asyncio.run(_late(tmp_path))
+
+
+async def _late(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from unseenet.core.article import format_date, parse_date
+    owner, gateway = crypto.Identity.generate(), crypto.Identity.generate()
+    store = UnseenetNode(Store(), NodeConfig(min_pow=8, forward_delay=(0, 0)))
+    server = await store.serve("127.0.0.1", 0)
+    addr = f"127.0.0.1:{server.sockets[0].getsockname()[1]}"
+    node = Node(addr, None)
+    node.use_key(gateway, tmp_path / "gateway.key.state.json")
+    node.use_key(owner, tmp_path / "group.key.state.json")
+    manifest = make_manifest(owner, "alt.gw.late", "moderated", moderators=[gateway.key_text],
+                             pow_bits=12)
+    assert await node.post(manifest) == "ok"
+    gid = make_group_id("alt.gw.late", owner.public_key)
+
+    two_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2)
+    art = new_article(gid, "Imported", "Fetched long ago\n", from_name="someone",
+                      extra=[("Content-Type", "text/plain; charset=utf-8")])
+    art.set("Date", format_date(two_hours_ago))
+    art.finalize(gateway, 8)
+    first_id = art.message_id
+    assert await node.post(art) == "ok"
+    assert art.message_id != first_id                      # signed again: a new Message-ID
+    assert store.store.get(first_id) is None
+    posted = store.store.get(art.message_id)
+    assert posted is not None
+    assert parse_date(art["Date"]) - two_hours_ago > timedelta(hours=1)   # within the hour
+    await node.shutdown()
+    server.close()
