@@ -106,3 +106,17 @@ def test_other_feeds_run_a_group_to_its_end(monkeypatch):
     ix = Importer(feed=feed, state=St(), node=None, gateway=None, pow_bits=0, pass_seconds=300)
     asyncio.run(ix.run())
     assert [g for g, _ in feed.got] == ["a"] * 10           # all of a, then time is up
+
+
+def test_a_message_that_cannot_be_converted_is_skipped_not_the_pass(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(imp.time, "monotonic", lambda: clock[0])
+    feed = Usenetish(clock, 0)
+
+    def boom(source, item):
+        feed.got.append((source.foreign, item.payload))
+        raise UnicodeEncodeError("utf-8", "\udc86", 0, 1, "surrogates not allowed")
+    feed.convert = boom
+    ix = Importer(feed=feed, state=St(), node=None, gateway=None, pow_bits=0, pass_seconds=0)
+    st = asyncio.run(ix.run())
+    assert st.skipped == 20 and len(feed.got) == 20          # every message seen, none stopped it

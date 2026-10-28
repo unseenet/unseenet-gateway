@@ -153,3 +153,26 @@ def test_long_and_odd_headers_are_tamed():
     art = conv(raw(h)).article
     assert len(art["Subject"]) == 256
     assert art["From"] == "ada"
+
+
+def _eight_bit(header_from: bytes, body: bytes = b"Hello.\r\n") -> bytes:
+    """An article with raw 8-bit octets and no MIME encoding, as some readers send (#55)."""
+    return (b"From: " + header_from + b"\r\nNewsgroups: comp.misc\r\nSubject: Eight bit \xe6\xf8\xe5\r\n"
+            b"Date: Fri, 16 Oct 2026 07:33:05 +0000\r\nMessage-ID: <eight@example.org>\r\n"
+            b"Content-Type: text/plain; charset=us-ascii\r\n\r\n" + body)
+
+
+def test_raw_eight_bit_headers_become_text_and_the_article_can_be_written():
+    c = conv(_eight_bit(b"\x86 Exocet <x@example.org>", b"Bad \x86 body\r\n"))
+    art = c.article
+    art.finalize(GW, 0)
+    data = art.to_bytes()                       # no surrogates left: it can be posted
+    validate_structure(Article.from_bytes(data), raw_size=len(data))
+    assert art["From"].startswith("† Exocet")          # 0x86 in Windows-1252
+    assert art["Subject"] == "Eight bit æøå"  # Latin-1 letters, as sent
+    assert "†" in art.get("Origin-From", "")
+
+
+def test_raw_utf8_headers_stay_utf8():
+    c = conv(_eight_bit("Søren <s@example.org>".encode()))
+    assert c.article["From"].startswith("Søren")

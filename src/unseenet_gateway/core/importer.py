@@ -163,6 +163,11 @@ class Importer:
                 self.state.count_skip(net, s.reason)
                 log.info("%s %s skipped: %s", source.foreign, item.label, s)
                 continue
+            except Exception as exc:  # noqa: BLE001 - one bad message must not stop the pass
+                st.skipped += 1
+                self.state.count_skip(net, "error")
+                log.warning("%s %s skipped, not convertible: %r", source.foreign, item.label, exc)
+                continue
             blobs, extra_bits = await self._pictures(source, item, art)
             # UN-RFC 0049 section 3.1: Date is the time of posting - fetching pictures may
             # have taken a while - and the other network's date is in Origin-Date

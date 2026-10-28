@@ -43,13 +43,37 @@ def parse(raw: bytes) -> EmailMessage:
     return email.message_from_bytes(raw, policy=email.policy.default)
 
 
+def unescape(value: str) -> str:
+    """Raw 8-bit octets the email parser kept as surrogates (a header sent without MIME
+    encoding, a body with the wrong charset) as text: UTF-8 if they are, else
+    Windows-1252, as Usenet readers do. A surrogate cannot be written as UTF-8 at all,
+    so an article with one could not be posted (#55)."""
+    if not any("\udc80" <= ch <= "\udcff" for ch in value):
+        return value
+    octets = value.encode("utf-8", "surrogateescape")
+    try:
+        return octets.decode("utf-8")
+    except UnicodeDecodeError:
+        return octets.decode("cp1252", "replace")
+
+
 def clean(value: str, limit: int | None = None) -> str:
     """Unfold, drop control characters, trim to ``limit`` characters."""
-    value = " ".join(str(value).split())
+    value = " ".join(unescape(str(value)).split())
     value = _CTRL.sub("", value)
     if limit and len(value) > limit:
         value = value[: limit - 1].rstrip() + "…"
     return value
+
+
+def header_text(msg: EmailMessage, name: str) -> str | None:
+    """A header as text: MIME-decoded as usual, but sent as raw 8-bit octets it is
+    read as ``unescape`` reads them, not as the parser's U+FFFD (#55)."""
+    for k, v in msg.raw_items():
+        if k.lower() == name.lower() and any("\udc80" <= ch <= "\udcff" for ch in v):
+            return unescape(v)
+    value = msg.get(name)
+    return None if value is None else str(value)
 
 
 def raw_header(msg: EmailMessage, name: str) -> str | None:
@@ -61,7 +85,7 @@ def raw_header(msg: EmailMessage, name: str) -> str | None:
 
 
 def display_from(msg: EmailMessage) -> str:
-    value = msg.get("From")
+    value = header_text(msg, "From")
     if value is None:
         raise Skip("syntax", "no From")
     pairs = getaddresses([str(value)])
@@ -104,6 +128,7 @@ def text_body(msg: EmailMessage) -> str:
         raise Skip("charset", str(exc)) from exc
     if not isinstance(text, str):
         raise Skip("binary", "not text")
+    text = unescape(text)
     if _YENC.search(text) or _UUENCODE.search(text):
         raise Skip("binary", "encoded file in body")
     return text
@@ -142,7 +167,7 @@ def convert(raw: bytes, *, carried: dict[str, str], id_map,
         raise Skip("group", ",".join(groups))
     group_id = carried[target]                             # 4.4: first carried group
 
-    subject = clean(msg.get("Subject", "") or "(no subject)", MAX_SUBJECT)
+    subject = clean(header_text(msg, "Subject") or "(no subject)", MAX_SUBJECT)
     from_name = display_from(msg)
     body = text_body(msg)
 
