@@ -155,7 +155,8 @@ class Exporter:
                 raise Refused(f"its file could not be had: {exc}") from exc
             if cipher is None:
                 raise Refused("its files are not on the node")
-            if bl.blob_id(cipher) != a["blob"] or not bl.fits_padding(len(cipher), a["size"]):
+            fits = getattr(bl, "fits_padding", None)     # not in every released core
+            if bl.blob_id(cipher) != a["blob"] or (fits and not fits(len(cipher), a["size"])):
                 raise Refused("the node sent another file than the submission names")
             try:
                 octets = bl.decrypt_file(keys[a["blob"]], cipher, a["size"])
