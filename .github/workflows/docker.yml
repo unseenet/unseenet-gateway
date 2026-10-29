@@ -1,0 +1,33 @@
+name: docker
+# ghcr.io/unseenet/gateway (Dockerfile, docs/docker.md): published for release tags
+# only - never on every merge - through the shared workflow (unseenet/unseenet#571);
+# a pull request that changes the image only builds and tests it.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["Dockerfile", "docker/**", "compose.yaml", ".github/workflows/docker.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    uses: unseenet/.github/.github/workflows/docker-image.yml@main
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    with:
+      image: ghcr.io/unseenet/gateway
+      test: |
+        set -eux
+        docker run --rm "$TEST_IMAGE" --version
+        docker volume create t
+        docker run --rm -v t:/data "$TEST_IMAGE" && exit 1 || test $? -eq 64     # example config written
+        docker run --rm -v t:/data -e UNSEENET_GATEWAY_PASSPHRASE=ci \
+          -e UNSEENET_GATEWAY_GROUP_PASSPHRASE=ci "$TEST_IMAGE" keys | grep "gateway key ed25519:"
+        test "$(docker run --rm -v t:/data "$TEST_IMAGE" sh -c 'id -u')" = 10001   # not root
+        docker run --rm "$TEST_IMAGE" sh -c "tor --version"

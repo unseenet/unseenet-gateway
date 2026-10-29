@@ -97,3 +97,34 @@ adapter contract are in the
 [gateway's README](https://github.com/unseenet/unseenet-gateway#writing-an-adapter).
 A new network also needs a profile UN-RFC and its hierarchy reserved in the
 root list ([UN-RFC 0018](https://unseenet.org/spec/un-rfc-0018/)).
+
+## In Docker
+
+`ghcr.io/unseenet/gateway` has the gateway, its Usenet and Nostr adapters and
+Tor, for amd64 and arm64. It is published for releases only, signed with
+cosign. Everything it keeps - `gateway.toml`, the keys, its state and Tor's -
+is in the volume at `/data`.
+
+```sh
+docker run --rm -v gateway:/data ghcr.io/unseenet/gateway        # writes an example gateway.toml
+docker run --rm -it -v gateway:/data ghcr.io/unseenet/gateway keys   # asks for the passphrases
+docker run --rm -it -v gateway:/data ghcr.io/unseenet/gateway sh     # edit /data/gateway.toml (vi)
+docker run -d --name gateway -v gateway:/data \
+    -e UNSEENET_GATEWAY_PASSPHRASE=... ghcr.io/unseenet/gateway   # run
+```
+
+With [`compose.yaml`](https://github.com/unseenet/unseenet-gateway/blob/main/compose.yaml)
+the passphrases are Docker secrets (`unseenet_gateway_passphrase`,
+`unseenet_gateway_group_passphrase`) instead of the environment, and the
+container runs with a read-only root file system and no capabilities beyond
+handing `/data` to its own user. Any gateway command runs the same way:
+`docker compose run --rm gateway create-groups`.
+
+- **Tor** runs in the container, and `socks_port = 9050` in `gateway.toml`
+  reaches it. To use a Tor outside it, set `TOR_SOCKS` (then none is started)
+  and point `socks_port` at it.
+- **Beside a homeserver, a relay or INN** in the same compose project,
+  address them by service name in `gateway.toml` (`server = "inn:119"`,
+  `relay = "ws://relay:7777"`).
+- The group key should leave the host after `create-groups`: copy
+  `/data/keys/group-owner.key` out (`docker cp`) and delete it from the volume.

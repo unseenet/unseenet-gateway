@@ -10,6 +10,12 @@ several gateways per group.
 
 ## [Unreleased]
 
+- **A container image** (#39, unseenet/unseenet#571): `ghcr.io/unseenet/gateway` -
+  the gateway, its adapters and Tor on the node image, config, keys and state in
+  `/data`, passphrases as Docker secrets - and a `compose.yaml`. Built and tested on
+  pull requests that change it, published for amd64 and arm64 only for release tags,
+  through the project's shared workflow. See *In Docker* in the docs.
+
 - **Raw 8-bit Usenet headers no longer stop the import** (#55): an article with an
   unencoded 8-bit `From:` could not be written (`surrogates not allowed`), and the error
   failed the whole pass, so the cursor never moved past it. Raw 8-bit text is read as
