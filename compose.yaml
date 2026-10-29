@@ -1,0 +1,32 @@
+# unseenet-gateway with Docker Compose (docs/docker.md).
+#
+#   docker compose run --rm gateway            # first time: writes /data/gateway.toml
+#   docker compose run --rm gateway keys       # make the keys, put the public ones in the config
+#   docker compose up -d
+#
+# Passphrases as secrets: one line each in the files named below.
+services:
+  gateway:
+    image: ghcr.io/unseenet/gateway:latest
+    restart: unless-stopped
+    volumes:
+      - gateway:/data              # gateway.toml, keys/, state/, Tor's state
+    secrets:
+      - unseenet_gateway_passphrase
+      - unseenet_gateway_group_passphrase
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    # Beside a node or a Matrix homeserver in the same compose project, address
+    # them by service name in gateway.toml, e.g. server = "inn:119".
+
+volumes:
+  gateway:
+
+secrets:
+  unseenet_gateway_passphrase:
+    file: ./gateway-passphrase.txt
+  unseenet_gateway_group_passphrase:
+    file: ./group-passphrase.txt
