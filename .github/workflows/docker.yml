@@ -25,9 +25,9 @@ jobs:
       test: |
         set -eux
         docker run --rm "$TEST_IMAGE" --version
-        docker volume create t
-        docker run --rm -v t:/data "$TEST_IMAGE" && exit 1 || test $? -eq 64     # example config written
-        docker run --rm -v t:/data -e UNSEENET_GATEWAY_PASSPHRASE=ci \
+        docker volume create ci
+        docker run --rm -v ci:/data "$TEST_IMAGE" && exit 1 || test $? -eq 64     # example config written
+        docker run --rm -v ci:/data -e UNSEENET_GATEWAY_PASSPHRASE=ci \
           -e UNSEENET_GATEWAY_GROUP_PASSPHRASE=ci "$TEST_IMAGE" keys | grep "gateway key ed25519:"
-        test "$(docker run --rm -v t:/data "$TEST_IMAGE" sh -c 'id -u')" = 10001   # not root
+        test "$(docker run --rm -v ci:/data "$TEST_IMAGE" sh -c 'id -u')" = 10001   # not root
         docker run --rm "$TEST_IMAGE" sh -c "tor --version"
