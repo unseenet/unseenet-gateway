@@ -25,7 +25,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from unseenet.client.runtime import SERVICE_RIPEN_TO
+from unseenet.client.runtime import service_ripen_to
 from unseenet.core import crypto
 from unseenet.core.groups import personal_inbox_id
 
@@ -305,8 +305,9 @@ async def cmd_import(cfg: dict, loop: bool) -> None:
         if owner.key_text != gw["group_owner"]:
             sys.exit("group_owner in the config does not match the group key")
         node.use_key(owner, key_state(gw["group_key"]))
-    if loop:                           # on to level 3 (no surcharge), low priority (UN-RFC 0025)
-        ripening = asyncio.create_task(ripen_quietly(node, gateway, SERVICE_RIPEN_TO))
+    if loop:                           # to the configured level, low priority (UN-RFC 0025, #58)
+        to = service_ripen_to(int(gw["ripen_to"]) if "ripen_to" in gw else None)
+        ripening = asyncio.create_task(ripen_quietly(node, gateway, to))
 
     seen: dict = {}                    # the Watcher's views, kept across rebuilds
 

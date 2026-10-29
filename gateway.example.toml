@@ -30,6 +30,9 @@ pow_bits = 18      # postage paid per imported article (the node's minimum)
                                 # to - fetched only over Tor), up to this many octets;
                                 # needs unseenet 0.5 and nodes that carry files (UN-RFC 0027)
 interval = 60      # seconds between passes in `run`
+# ripen_to = 4     # the gateway key's ripening level (UN-RFC 0025); default UNSEENET_RIPEN_TO,
+                   # else 3. 4 takes two to three weeks of one core, then every imported
+                   # article costs about a quarter of the postage - worth it for a gateway
 pass_seconds = 300 # an import pass starts no new group after this (0: no limit), so export and requests get their turn
 
 [unseenet]
