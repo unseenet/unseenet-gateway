@@ -10,6 +10,14 @@ several gateways per group.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
+Needs unseenet 0.6 (`unseenet>=0.6,<0.7`): update the nodes first.
+
+- **Ripening to the level you choose** (#58, unseenet#740): the gateway key ripens in the
+  background to `ripen_to` under `[gateway]`, else `UNSEENET_RIPEN_TO`, else level 3.
+  Level 4 takes two to three weeks of one core, then every imported article costs about a
+  quarter of the postage. The project's own gateway runs at 4.
 - **A container image** (#39, unseenet/unseenet#571): `ghcr.io/unseenet/gateway` -
   the gateway, its adapters and Tor on the node image, config, keys and state in
   `/data`, passphrases as Docker secrets - and a `compose.yaml`. Built and tested on
@@ -154,6 +162,7 @@ from 0.4.0 need the gateway's keys ripened once (`unseenet-gateway ripen`).
   [unseenet/unseenet-gateway](https://github.com/unseenet/unseenet-gateway)
   (the old address redirects).
 
-[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/unseenet/unseenet-gateway/releases/tag/v0.1.0
