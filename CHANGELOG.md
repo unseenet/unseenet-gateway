@@ -10,10 +10,14 @@ several gateways per group.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-30
+
+Needs unseenet 0.6.5 (`unseenet>=0.6.5,<0.7`), which makes the link cards; nodes need no update for it.
+
 ### Added
 
-- **Link cards on imported messages** (#63, UN-RFC 0059 section 11; needs unseenet with
-  `fetch_card`, unseenet#797): with `gateway.link_cards = true`, a message from Usenet,
+- **Link cards on imported messages** (#63, UN-RFC 0059 section 11; needs unseenet
+  0.6.5): with `gateway.link_cards = true`, a message from Usenet,
   Nostr or Matrix with a link gets a card for its first link - the site's icon, domain,
   title and description, made over the gateway's Tor and signed with the message, so
   readers fetch nothing. Never the page's picture, whose licence the gateway cannot know.
@@ -171,7 +175,8 @@ from 0.4.0 need the gateway's keys ripened once (`unseenet-gateway ripen`).
   [unseenet/unseenet-gateway](https://github.com/unseenet/unseenet-gateway)
   (the old address redirects).
 
-[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/unseenet/unseenet-gateway/releases/tag/v0.1.0
