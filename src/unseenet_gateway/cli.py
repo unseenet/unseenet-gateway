@@ -325,7 +325,8 @@ async def cmd_import(cfg: dict, loop: bool) -> None:
         pictures = int(gw.get("pictures_max_size", 0))     # gateway#26
         tasks += [Importer(feed=f, state=state, node=node, gateway=gateway,
                            pow_bits=pow_bits, delay_for=watcher.delay, pictures_max=pictures,
-                           pass_seconds=float(gw.get("pass_seconds", PASS_SECONDS)))
+                           pass_seconds=float(gw.get("pass_seconds", PASS_SECONDS)),
+                           link_cards=bool(gw.get("link_cards", False)))
                   for f in feeds]
         tasks += make_portals(cfg, gateway, state, node, feeds)
         if gw.get("directory", DEFAULT_DIRECTORY):       # "" turns announcing off

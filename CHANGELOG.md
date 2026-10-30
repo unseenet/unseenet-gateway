@@ -10,6 +10,15 @@ several gateways per group.
 
 ## [Unreleased]
 
+### Added
+
+- **Link cards on imported messages** (#63, UN-RFC 0059 section 11; needs unseenet with
+  `fetch_card`, unseenet#797): with `gateway.link_cards = true`, a message from Usenet,
+  Nostr or Matrix with a link gets a card for its first link - the site's icon, domain,
+  title and description, made over the gateway's Tor and signed with the message, so
+  readers fetch nothing. Never the page's picture, whose licence the gateway cannot know.
+  Off by default: every card is a fetch over Tor. Outgoing messages keep the plain link.
+
 ## [0.3.0] - 2026-10-29
 
 Needs unseenet 0.6 (`unseenet>=0.6,<0.7`): update the nodes first.
