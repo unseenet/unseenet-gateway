@@ -53,7 +53,7 @@ PASS_SECONDS = 300          # an importer pass starts no new group after this (#
 class Importer:
     def __init__(self, *, feed: Feed, state: State, node: Node, gateway: crypto.Identity,
                  pow_bits: int, delay_for=None, pictures_max: int = 0,
-                 pass_seconds: float = PASS_SECONDS):
+                 pass_seconds: float = PASS_SECONDS, link_cards: bool = False):
         self.feed, self.state, self.node = feed, state, node
         # the passes run one after another (cli.py): a long import must leave export and
         # the operator's desk their turn - 0 for no limit
@@ -64,6 +64,8 @@ class Importer:
         # pictures on imported messages, up to this size (0: none) - gateway#26
         self.pictures_max = pictures_max if fl.core_posts_files() else 0
         self.gateway, self.pow_bits = gateway, pow_bits
+        # link cards on imported messages with a link (gateway#63, UN-RFC 0059 section 11)
+        self.link_cards = link_cards
         # group id -> seconds to wait before importing (rank x stagger), or None when this
         # gateway may not write there (UN-RFC 0038); None for the whole callable: no waiting
         self.delay_for = delay_for
@@ -115,6 +117,30 @@ class Importer:
                                                  " - this gateway carries no pictures") + ")"
             art.body = (art.body.rstrip("\n") + "\n\n" + line + "\n").lstrip("\n")
         return blobs, bits
+
+    async def _card(self, art: Article) -> None:
+        """A link card for the first link of an imported message (gateway#63, UN-RFC 0059
+        section 11), made over the gateway's Tor and signed with it - without the page's
+        picture, whose licence the gateway cannot know. Nothing when cards are off, there
+        is no Tor or no link, or the page gives no title: the message comes in as it is."""
+        socks = getattr(self.node, "socks_port", None)
+        if not self.link_cards or not socks:
+            return
+        try:
+            from unseenet.client.session import fetch_card
+            from unseenet.core import cards as cd
+        except ImportError:                       # a core before link cards
+            return
+        url = cd.first_url(art.body or "")
+        if not url:
+            return
+        try:
+            draft = await fetch_card(url, socks, picture=False)
+        except Exception as exc:  # noqa: BLE001 - the message still comes in
+            log.info("no link card for %s: %s", url, exc)
+            return
+        if draft.title.strip():
+            art.set(cd.HEADER, cd.header_value(draft.card(None)))
 
     async def _reaction_set(self, group_id: str):
         """The emoji the gatewayed group takes, from its manifest, kept an hour (#45)."""
@@ -169,6 +195,7 @@ class Importer:
                 log.warning("%s %s skipped, not convertible: %r", source.foreign, item.label, exc)
                 continue
             blobs, extra_bits = await self._pictures(source, item, art)
+            await self._card(art)
             # UN-RFC 0049 section 3.1: Date is the time of posting - fetching pictures may
             # have taken a while - and the other network's date is in Origin-Date
             art.set("Date", format_date(datetime.now(timezone.utc)))
