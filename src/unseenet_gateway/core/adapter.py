@@ -89,6 +89,9 @@ class Source:
     # the emoji the group takes, for imported reactions (UN-RFC 0048 section 9, #45):
     # set by the importer from the group's manifest; None takes any single emoji
     takes: Callable | None = field(default=None, compare=False, hash=False)
+    # what the group takes of shares (UN-RFC 0060 section 9), from its manifest: None
+    # until the importer has read it, then core/sharing.py's Takes
+    shares: object | None = field(default=None, compare=False, hash=False)
 
 
 @dataclass

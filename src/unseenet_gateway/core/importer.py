@@ -142,26 +142,31 @@ class Importer:
         if draft.title.strip():
             art.set(cd.HEADER, cd.header_value(draft.card(None)))
 
-    async def _reaction_set(self, group_id: str):
-        """The emoji the gatewayed group takes, from its manifest, kept an hour (#45)."""
+    async def _group_takes(self, group_id: str):
+        """What the gatewayed group takes, from its manifest, kept an hour: the emoji
+        (#45) and shares (UN-RFC 0060 section 9). ``(None, Takes())`` without one."""
         from unseenet.core import reactions as rx
+        from .sharing import Takes
         cache = self.__dict__.setdefault("_sets", {})
         hit = cache.get(group_id)
         if hit and time.time() - hit[0] < 3600:
             return hit[1]
-        takes = None
+        takes, shares = None, Takes()
         try:
             m = await self.node.manifest(group_id)
         except (OSError, ConnectionError, ValueError):
             m = None
         if m is not None:
             takes = rx.reaction_set(dict(m.raw)).takes
-        cache[group_id] = (time.time(), takes)
-        return takes
+            shares = Takes.of(dict(m.raw))
+        cache[group_id] = (time.time(), (takes, shares))
+        return takes, shares
 
     async def run_source(self, source: Source) -> RunStats:
-        if source.takes is None and hasattr(self.node, "manifest"):
-            source = dataclasses.replace(source, takes=await self._reaction_set(source.group_id))
+        if (source.takes is None or source.shares is None) and hasattr(self.node, "manifest"):
+            takes, shares = await self._group_takes(source.group_id)
+            source = dataclasses.replace(source, takes=source.takes or takes,
+                                         shares=source.shares or shares)
         st, net = RunStats(), self.feed.network
         delay = self.delay_for(source.group_id) if self.delay_for else 0.0
         now, hold_from = time.time(), None

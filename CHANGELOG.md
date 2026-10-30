@@ -10,6 +10,19 @@ several gateways per group.
 
 ## [Unreleased]
 
+Needs unseenet 0.6.6 (`unseenet>=0.6.6,<0.7`), which shares.
+
+### Added
+
+- **Shares** (#66, UN-RFC 0060 section 9): out, a plain share of a post that is on Nostr
+  too is a NIP-18 repost (kind 16 for group events, 6 for a kind 1 note, empty content)
+  and a share with a comment a quote (`q` tag and a `nostr:note1…` link); otherwise, and
+  to Matrix, the share's words with the shared post's `unseenet:` address - never the
+  original's text. In, a Nostr repost of something the gateway carries is a plain share
+  where the group takes them, a new thread quoting it a share with a comment, anything
+  else an ordinary post with a `nostr:` link. Share notices are never carried. What a
+  group takes is read from its manifest with its emoji.
+
 ## [0.4.0] - 2026-10-30
 
 Needs unseenet 0.6.5 (`unseenet>=0.6.5,<0.7`), which makes the link cards; nodes need no update for it.

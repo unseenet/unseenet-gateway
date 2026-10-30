@@ -16,9 +16,11 @@ import logging
 from unseenet.core import crypto
 from unseenet.core.article import Article
 
+from ..core import sharing
 from ..core.adapter import ExportError
 from ..core.state import State
-from .convert import CHAT, COMMENT, FROM_UNSEENET_TAG, NETWORK, THREAD
+from .convert import (CHAT, COMMENT, FROM_UNSEENET_TAG, GENERIC_REPOST, NETWORK, REPOST,
+                      THREAD, note_id)
 from .event import pubkey_of, sign_event
 from .relay import Relay
 
@@ -77,7 +79,8 @@ class NostrSender:
         (UN-RFC 0038 section 5): another gateway's turn came first. Relays index only
         one-letter tags, so the group's recent events are read and their ``unseenet``
         tag compared here."""
-        events = await self.relay.query({"#h": [group], "kinds": [THREAD, CHAT, COMMENT],
+        events = await self.relay.query({"#h": [group],
+                                         "kinds": [THREAD, CHAT, COMMENT, GENERIC_REPOST],
                                          "limit": limit})
         for ev in events:
             if any(t[:2] == [FROM_UNSEENET_TAG, message_id] for t in ev.tags):
@@ -91,9 +94,16 @@ class NostrSender:
         if there:
             log.info("%s is already in %s as %s", art.message_id, group, there)
             return there
-        parent = await self._parent(art)
-        content = art.body.rstrip("\n") + pictures_line(art) + signature_line(art)
         tags = [["h", group], [FROM_UNSEENET_TAG, art.message_id]]
+        shared = await self._shared(art)               # UN-RFC 0060 section 9
+        if shared is not None and sharing.is_plain(art):
+            return await self._publish(self._repost(shared, tags))
+        parent = await self._parent(art)
+        content = sharing.out_text(art) + pictures_line(art) + signature_line(art)
+        if shared is not None:                         # a quote (NIP-18): q and a nostr: link
+            content = (art.body.rstrip("\n") + f"\n\nnostr:{note_id(shared.id)}"
+                       + pictures_line(art) + signature_line(art))
+            tags.append(["q", shared.id, self.url, shared.pubkey])
         if parent is None:
             kind = THREAD
             tags.append(["title", art.get("Subject", "")[:200]])
@@ -110,12 +120,35 @@ class NostrSender:
                      ["P", root_pk or parent.pubkey],
                      ["e", parent.id, self.url, parent.pubkey], ["k", str(parent.kind)],
                      ["p", parent.pubkey]]
-        ev = sign_event(self.secret, kind, content, tags)
+        return await self._publish(sign_event(self.secret, kind, content, tags))
+
+    async def _publish(self, ev) -> str:
         ok, msg = await self.relay.publish(ev)
         if not ok:
             raise ExportError(msg)
         self._sent.add(ev.id)
         return ev.id
+
+    async def _shared(self, art: Article):
+        """The Nostr event a share shares, when the target came from or went to this
+        relay; None for anything else."""
+        t = sharing.target(art)
+        hit = self.state.foreign_for(t[0]) if t else None
+        if not hit or hit[0] != NETWORK:
+            return None
+        found = await self.relay.query({"ids": [hit[1]]})
+        return found[0] if found else None
+
+    def _repost(self, shared, tags: list):
+        """A plain share of an event on Nostr as a NIP-18 repost: kind 6 for a kind 1
+        note, else the generic kind 16 with its ``k`` tag - group events are 11, 9 and
+        1111. The content stays empty: the original's text is never copied out on the
+        sharer's behalf, and who shared it is in no event of ours to name."""
+        kind = REPOST if shared.kind == 1 else GENERIC_REPOST
+        tags = tags + [["e", shared.id, self.url], ["p", shared.pubkey]]
+        if kind == GENERIC_REPOST:
+            tags.append(["k", str(shared.kind)])
+        return sign_event(self.secret, kind, "", tags)
 
     async def react(self, group: str, event_id: str, emoji: str) -> str:
         """The gateway's own kind 7 reaction (NIP-25) to an event from Nostr, while at

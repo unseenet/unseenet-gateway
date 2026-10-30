@@ -15,12 +15,17 @@ from unseenet.core.article import MAX_SIZE, Article, new_article
 
 from ..core.adapter import Skip  # noqa: F401  (shared by all networks)
 from ..core.importer import cancel_article  # noqa: F401
+from ..core import sharing
 from ..core.origin import origin_headers
+from ..core.sharing import Takes
 from .event import Event
 
 NETWORK = "nostr"
 THREAD, CHAT, COMMENT, DELETION, REACTION = 11, 9, 1111, 5, 7
-IMPORTED_KINDS = (THREAD, CHAT, COMMENT, REACTION)   # reactions: UN-RFC 0048 section 9
+REPOST, GENERIC_REPOST = 6, 16          # NIP-18: 6 reposts a kind 1 note, 16 any other kind
+REPOSTS = (REPOST, GENERIC_REPOST)
+# reactions: UN-RFC 0048 section 9; reposts: UN-RFC 0060 section 9
+IMPORTED_KINDS = (THREAD, CHAT, COMMENT, REACTION, REPOST, GENERIC_REPOST)
 FROM_UNSEENET_TAG = "unseenet"          # set on events a gateway exported
 MAX_SUBJECT = 256
 MAX_FROM = 128
@@ -46,8 +51,17 @@ def _polymod(values):
 
 def npub(pubkey_hex: str) -> str:
     """NIP-19 bech32 encoding of a public key."""
+    return _bech32("npub", pubkey_hex)
+
+
+def note_id(event_id_hex: str) -> str:
+    """NIP-19 bech32 encoding of an event id (``note1...``), for ``nostr:`` links."""
+    return _bech32("note", event_id_hex)
+
+
+def _bech32(hrp: str, value_hex: str) -> str:
     data, acc, bits = [], 0, 0
-    for byte in bytes.fromhex(pubkey_hex):
+    for byte in bytes.fromhex(value_hex):
         acc = (acc << 8) | byte
         bits += 8
         while bits >= 5:
@@ -55,7 +69,6 @@ def npub(pubkey_hex: str) -> str:
             data.append((acc >> bits) & 31)
     if bits:
         data.append((acc << (5 - bits)) & 31)
-    hrp = "npub"
     exp = [ord(c) >> 5 for c in hrp] + [0] + [ord(c) & 31 for c in hrp]
     pm = _polymod(exp + data + [0] * 6) ^ 1
     checksum = [(pm >> 5 * (5 - i)) & 31 for i in range(6)]
@@ -189,13 +202,47 @@ def convert_reaction(ev: Event, *, group_id: str, id_map, name_of, now=None, tak
     return art
 
 
+def _carried(eid: str | None, id_map, group_of) -> tuple[str, str] | None:
+    """(Message-ID, Group ID) in Unseenet of an event the gateway carries, or None."""
+    mid = id_map(eid) if eid else None
+    gid = group_of(mid) if mid and group_of else None
+    return (mid, gid) if mid and gid else None
+
+
+def convert_repost(ev: Event, *, group_id: str, id_map, group_of, name_of,
+                   shares: Takes, now=None) -> Article:
+    """A NIP-18 repost (kind 6 or 16) -> a plain share when the gateway carries what it
+    reposts and the group takes plain shares; otherwise an ordinary post with a link to
+    it (UN-RFC 0060 section 9). The reposted event's text is never copied in: a relay
+    sends it along in ``content``, but it is the original author's, not the reposter's."""
+    targets = [t for t in ev.tags if len(t) > 1 and t[0] == "e"]
+    eid = targets[-1][1] if targets else None
+    if not eid or len(eid) != 64:
+        raise Skip("repost", "of no event")
+    author = name_of(ev.pubkey)
+    from_name = clean(author, MAX_FROM) if author else short_npub(ev.pubkey)
+    when = format_datetime(datetime.fromtimestamp(ev.created_at, timezone.utc))
+    origin = origin_headers(NETWORK, ev.id, when, npub(ev.pubkey))
+    origin += [("Origin-Proof", ev.to_json()), ("Nostr-Kind", str(ev.kind))]
+    there = _carried(eid, id_map, group_of)
+    if there is not None:
+        if not shares.plain:
+            raise Skip("repost", "the group takes no plain shares")
+        return sharing.plain(group_id, there[0], there[1], from_name=from_name, extra=origin)
+    extra = [("Content-Type", "text/plain; charset=utf-8"), ("Message-Kind", "post"), *origin]
+    return new_article(group_id, "Reposted on Nostr", f"Reposted: nostr:{note_id(eid)}\n",
+                       from_name=from_name, extra=extra, now=now)
+
+
 def convert(ev: Event, *, group_id: str, id_map, title_of, name_of,
-            now: datetime | None = None, takes=None) -> Article:
+            now: datetime | None = None, takes=None, group_of=None,
+            shares: Takes = sharing.NONE) -> Article:
     """Build the unsigned Unseenet article for one verified group event.
 
     ``id_map(event_id)`` -> Unseenet Message-ID or None; ``title_of(event_id)``
     -> the subject of an earlier message or None; ``name_of(pubkey)`` -> a
-    display name or None.
+    display name or None; ``group_of(message_id)`` -> the Group ID it was imported
+    into or None, and ``shares`` what the group takes of shares (UN-RFC 0060).
     """
     if ev.kind not in IMPORTED_KINDS:
         raise Skip("kind", str(ev.kind))
@@ -204,6 +251,9 @@ def convert(ev: Event, *, group_id: str, id_map, title_of, name_of,
     if ev.kind == REACTION:
         return convert_reaction(ev, group_id=group_id, id_map=id_map, name_of=name_of,
                                 now=now, takes=takes)
+    if ev.kind in REPOSTS:
+        return convert_repost(ev, group_id=group_id, id_map=id_map, group_of=group_of,
+                              name_of=name_of, shares=shares, now=now)
     if not ev.content.strip():
         raise Skip("empty")
 
@@ -242,6 +292,12 @@ def convert(ev: Event, *, group_id: str, id_map, title_of, name_of,
 
     art = new_article(group_id, subject, ev.content, from_name=from_name,
                       references=refs or None, extra=extra, now=now)
+    # a thread quoting an event the gateway carries: a share with a comment (NIP-18
+    # quote, UN-RFC 0060 section 9) - a chat line's q is a reply, not a quote
+    if ev.kind == THREAD and shares.shares:
+        there = _carried(ev.tag("q"), id_map, group_of)
+        if there is not None:
+            sharing.with_comment(art, *there)
     if len(art.to_bytes()) + 400 > MAX_SIZE:
         raise Skip("size")
     return art
