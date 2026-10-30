@@ -32,6 +32,7 @@ from unseenet.core.article import Article, ArticleError
 from unseenet.core.groups import Manifest
 from unseenet.nntp import NNTPError, strip_reader_headers
 
+from . import sharing
 from .adapter import Counterpart, ExportError, is_text
 from .importer import Importer
 from .state import State
@@ -90,6 +91,8 @@ def exportable(art: Article, gateway_pk: bytes) -> str | None:
         return "encrypted"
     if art.author_key == gateway_pk or "Origin-Network" in art:
         return "came from another network"
+    if sharing.is_notice(art):            # never carried (UN-RFC 0060 section 9)
+        return "share notice"
     if not is_text(art):
         return "not text"
     if not art.body.strip():

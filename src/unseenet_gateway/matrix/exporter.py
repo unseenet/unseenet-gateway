@@ -23,6 +23,7 @@ from unseenet.core import crypto
 from unseenet.core.article import Article
 from unseenet.core.markup import is_markdown
 
+from ..core import sharing
 from ..core.adapter import ExportError
 from ..core.state import State
 from .client import Matrix, MatrixError
@@ -94,7 +95,7 @@ class MatrixSender:
             log.info("%s is already in %s as %s", art.message_id, self.rooms[art.group], there)
             return there
         who = author_line(art)
-        text = art.body.rstrip("\n")
+        text = sharing.out_text(art)    # a share: its text and the target's address (0060 9)
         head = f"{who}:"
         subject = art.get("Subject", "").strip()
         if (subject and art.get("Message-Kind", "post") != "chat"

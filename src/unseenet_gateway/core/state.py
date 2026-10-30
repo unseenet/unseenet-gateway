@@ -72,6 +72,12 @@ class State:
                               (unseenet_id,)).fetchone()
         return (row[0], row[1]) if row else None
 
+    def group_for(self, unseenet_id: str) -> str | None:
+        """The Unseenet group a message was imported into or exported from."""
+        row = self.db.execute("SELECT group_id FROM ids WHERE unseenet_id=?",
+                              (unseenet_id,)).fetchone()
+        return row[0] if row else None
+
     def remember(self, network: str, foreign_id: str, unseenet_id: str, group_id: str,
                  direction: str = "in") -> None:
         self.db.execute("INSERT OR REPLACE INTO ids VALUES (?,?,?,?,?,?)",

@@ -82,6 +82,26 @@ kept for years. That is a different promise, so:
 - **Only open groups.** Closed groups, private messages and encrypted posts
   are never published.
 
+## Shares
+
+A share ([UN-RFC 0060](https://unseenet.org/spec/un-rfc-0060/)) is a
+reference, never a copy, on the other network too:
+
+- **Out.** A plain share of a post that is on Nostr as well becomes a
+  repost there (NIP-18: kind 16 for a group's events, kind 6 for a plain
+  note); a share with a comment becomes a quote, your words with a `q` tag
+  and a `nostr:` link. A share of something that is not on Nostr, and every
+  share to Matrix, goes as your words and the shared post's `unseenet:`
+  address. The shared post's own text is never sent on your behalf.
+- **In.** A Nostr repost of something the gateway carries becomes a plain
+  share in groups that take them (a feed), and a new thread quoting it
+  becomes a share with a comment; anything else comes in as an ordinary post
+  with a `nostr:` link. Chat groups take no shares.
+- **Share notices** (someone shared your post) stay in Unseenet.
+
+Where a post asks not to be shared (`Sharing: no`), the node already
+refuses shares of it, so none reaches a gateway.
+
 ## What a gateway never does
 
 A gateway never learns or records who wrote an Unseenet post or where it
