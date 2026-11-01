@@ -18,6 +18,20 @@ if [ "$(id -u)" = 0 ]; then
         chown -R unseenet:unseenet "$DATA"
     fi
     chmod 700 "$DATA"
+    # A secret file is mounted as it is on the host (often root's, mode 600), so the
+    # gateway's user may not read it: hand a copy on in /tmp (a tmpfs), readable by it only.
+    for s in UNSEENET_GATEWAY_PASSPHRASE:unseenet_gateway_passphrase UNSEENET_GATEWAY_GROUP_PASSPHRASE:unseenet_gateway_group_passphrase; do
+        var=${s%%:*} name=${s#*:}
+        eval "f=\${${var}_FILE:-}"
+        for f in "$f" "/run/secrets/$name"; do
+            if [ -n "$f" ] && [ -r "$f" ]; then
+                (umask 077 && cat "$f" > "/tmp/$name")
+                chown unseenet:unseenet "/tmp/$name"
+                export "${var}_FILE=/tmp/$name"
+                break
+            fi
+        done
+    done
     exec su-exec unseenet "$0" "$@"
 fi
 

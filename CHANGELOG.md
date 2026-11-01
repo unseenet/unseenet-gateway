@@ -23,6 +23,12 @@ Needs unseenet 0.6.6 (`unseenet>=0.6.6,<0.7`), which shares.
   else an ordinary post with a `nostr:` link. Share notices are never carried. What a
   group takes is read from its manifest with its emoji.
 
+### Fixed
+
+- **The image reads its passphrase secrets when the files belong to the host's user** (mode
+  600, as the compose file suggests): the start script copies them for the gateway's user
+  while it is still root. Before, the gateway found no passphrase (unseenet#862).
+
 ## [0.4.0] - 2026-10-30
 
 Needs unseenet 0.6.5 (`unseenet>=0.6.5,<0.7`), which makes the link cards; nodes need no update for it.
