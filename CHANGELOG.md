@@ -10,6 +10,13 @@ several gateways per group.
 
 ## [Unreleased]
 
+### Added
+
+- **The gateway follows the directory to the list council** (UN-RFC 0038 section 6.1,
+  unseenet/unseenet#861): when the project's `unseenet.gateways` says it moved (`moved_to`),
+  the gateway announces in the directory it names, asking once a day. A directory set in the
+  config (`directory`) is used as it is.
+
 ## [0.5.0] - 2026-11-02
 
 Shares, and passphrase secrets in the image, on core 0.7. Needs unseenet 0.7 (`unseenet>=0.7,<0.8`): update the nodes first.
