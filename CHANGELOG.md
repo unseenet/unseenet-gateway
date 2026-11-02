@@ -10,7 +10,7 @@ several gateways per group.
 
 ## [Unreleased]
 
-Needs unseenet 0.6.6 (`unseenet>=0.6.6,<0.7`), which shares.
+Needs unseenet 0.7 (`unseenet>=0.7,<0.8`): update the nodes first.
 
 ### Added
 
