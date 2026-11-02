@@ -125,7 +125,9 @@ People decide who takes part. To help serve a group another gateway runs:
 Until the manifest lists it, the joining gateway writes nothing in the group.
 Every gateway announces itself in the directory `unseenet.gateways` (name,
 operator, accounts to invite, groups served); a group stays active while one of
-its gateways announces it.
+its gateways announces it. When the project moves the directory to its list
+council, the old one says so (`moved_to`), and the gateway announces in the new
+one by itself.
 
 ## How it works
 

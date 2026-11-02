@@ -4,6 +4,10 @@ An announcement says who runs the gateway, what to invite on each network, and
 which groups it serves. It is posted when its content changes and at least every
 7 days; clients hide announcements older than 30 days, and a gatewayed group is
 active only while one of its gateways announces it (section 7).
+
+When the project's directory moves to a list council, its last manifest names the new
+one in ``moved_to`` (section 6.1, UN-RFC 0020 section 10): the gateway announces there
+from then on, asking again once a day. A directory set in the config is used as it is.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from .unseenet_side import Node
 log = logging.getLogger(__name__)
 DEFAULT_DIRECTORY = "unseenet.gateways@ph5fc5hop5232qsz"
 RENEW = 7 * 86400
+LOOK_AGAIN = 86400           # how often to ask whether the project's directory moved
 
 
 def announcement(cfg: dict, ads: list[Adapter]) -> dict:
@@ -54,10 +59,34 @@ class Announcer:
                  gateway: crypto.Identity, pow_bits: int):
         self.cfg, self.ads, self.state, self.node = cfg, ads, state, node
         self.gateway, self.pow_bits = gateway, pow_bits
-        self.directory = cfg["gateway"].get("directory", DEFAULT_DIRECTORY)
+        self.configured = cfg["gateway"].get("directory", DEFAULT_DIRECTORY)
+        self.directory = self.configured
         self.label = "directory"
+        self._looked = 0.0
+
+    async def _where(self) -> str:
+        """The directory to announce in: the configured one, or - for the project's -
+        the one its manifest says it moved to."""
+        ask = getattr(self.node, "manifest", None)
+        if (ask is None or self.configured != DEFAULT_DIRECTORY
+                or time.time() - self._looked < LOOK_AGAIN):
+            return self.directory
+        try:
+            m = await ask(DEFAULT_DIRECTORY)
+        except (NNTPError, OSError, ConnectionError) as exc:
+            log.info("could not read the directory's manifest: %s", exc)
+            return self.directory                # ask again next time
+        self._looked = time.time()
+        moved = (m.raw.get("moved_to") if m is not None else None)
+        where = moved if isinstance(moved, str) and "@" in moved and len(moved) < 200 \
+            else DEFAULT_DIRECTORY
+        if where != self.directory:
+            log.info("the gateway directory is %s", where)
+        self.directory = where
+        return where
 
     async def run(self) -> str:
+        await self._where()
         body = json.dumps(announcement(self.cfg, self.ads), sort_keys=True, ensure_ascii=False)
         digest = int(hashlib.sha256(body.encode()).hexdigest()[:12], 16)
         last_at = self.state.get_cursor("unseenet", f"announced-at:{self.directory}") or 0

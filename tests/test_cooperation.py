@@ -140,3 +140,26 @@ def test_a_new_peer_always_raises_the_serial(tmp_path):
     assert manifest_serial(st, Ad, GID, bump=True) == 2        # serial 1 is out already
     assert manifest_serial(st, Ad, GID) == 2
     assert manifest_serial(st, Ad, GID, bump=True) == 3
+
+
+def test_announcer_follows_the_directory_to_the_council(tmp_path):
+    """UN-RFC 0038 section 6.1: the project's directory says it moved (``moved_to``);
+    the gateway announces in the new one. A directory set in the config stays."""
+    from types import SimpleNamespace
+
+    from unseenet_gateway.core.directory import DEFAULT_DIRECTORY
+    new = "unseenet.gateways@abcdefghijklmnop"
+    node, state = Inbox(), State(tmp_path / "s.db")
+    manifests = {DEFAULT_DIRECTORY: SimpleNamespace(raw={"moved_to": new})}
+
+    async def manifest(gid):
+        return manifests.get(gid)
+    node.manifest = manifest
+    an = Announcer(cfg=CFG, ads=[FakeAd([GID])], state=state, node=node, gateway=GW1, pow_bits=0)
+    asyncio.run(an.run())
+    assert an.directory == new and len(node.groups[new]) == 1
+    assert DEFAULT_DIRECTORY not in node.groups
+    own = {**CFG, "gateway": {**CFG["gateway"], "directory": "my.directory@abcdefghijklmnop"}}
+    an2 = Announcer(cfg=own, ads=[FakeAd([GID])], state=state, node=node, gateway=GW1, pow_bits=0)
+    asyncio.run(an2.run())
+    assert an2.directory == "my.directory@abcdefghijklmnop"
