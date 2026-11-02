@@ -10,7 +10,9 @@ several gateways per group.
 
 ## [Unreleased]
 
-Needs unseenet 0.7 (`unseenet>=0.7,<0.8`): update the nodes first.
+## [0.5.0] - 2026-11-02
+
+Shares, and passphrase secrets in the image, on core 0.7. Needs unseenet 0.7 (`unseenet>=0.7,<0.8`): update the nodes first.
 
 ### Added
 
@@ -194,7 +196,8 @@ from 0.4.0 need the gateway's keys ripened once (`unseenet-gateway ripen`).
   [unseenet/unseenet-gateway](https://github.com/unseenet/unseenet-gateway)
   (the old address redirects).
 
-[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/unseenet/unseenet-gateway/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/unseenet/unseenet-gateway/compare/v0.1.0...v0.2.0
