@@ -1,0 +1,23 @@
+# systemd unit for the gateway, as a user "gateway" with its venv in its home and
+# gateway.toml there (state = "state/gateway.db"). The passphrase file holds
+# UNSEENET_GATEWAY_PASSPHRASE=... (and, with auto_create, UNSEENET_GATEWAY_GROUP_PASSPHRASE)
+# and is readable by it alone.
+[Unit]
+Description=Unseenet gateway
+After=network-online.target tor.service
+Wants=network-online.target
+
+[Service]
+User=gateway
+WorkingDirectory=/home/gateway
+EnvironmentFile=/home/gateway/.config/unseenet-gateway/passphrase
+ExecStart=/home/gateway/.venv/bin/unseenet-gateway -c /home/gateway/gateway.toml run
+Restart=on-failure
+RestartSec=60
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/gateway
+
+[Install]
+WantedBy=multi-user.target

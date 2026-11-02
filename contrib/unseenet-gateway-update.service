@@ -1,0 +1,21 @@
+# Updates unseenet-gateway from its newest signed stable release (UN-RFC 0062 section 6.1,
+# unseenet/unseenet#827): only files whose hashes the release's server requirements
+# give, never to an older version, a random time of up to 48 hours after it first sees
+# the release; it copies the environment first and goes back if the service does not
+# come up. Root, since it restarts the service; pip runs as the owner of the environment.
+# Needs a core with --package (unseenet 0.8 or newer) in that environment.
+# It waits while the gateway key ripens (the busy file beside the state), so a
+# ripening is never restarted. The paths are those of unseenet-gateway.service
+# here: change them if yours differ. Install: copy both to /etc/systemd/system,
+# then  sudo systemctl enable --now unseenet-gateway-update.timer
+# What it did:  /home/gateway/.venv/bin/unseenet-service-update status --service unseenet-gateway
+# Turn it off:  sudo /home/gateway/.venv/bin/unseenet-service-update off --service unseenet-gateway
+# (it then only says, in the log, when a release has been out for 30 days).
+[Unit]
+Description=Update unseenet-gateway from its newest signed release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/gateway/.venv/bin/unseenet-service-update run --service unseenet-gateway --package unseenet-gateway --busy /home/gateway/state/busy

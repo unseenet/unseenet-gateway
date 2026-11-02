@@ -65,6 +65,13 @@ unseenet-gateway -c gateway.toml -n nostr import-once -v   # one network only
 unseenet-gateway -c gateway.toml -n matrix matrix-login    # Matrix: save the bot's token
 ```
 
+`contrib/unseenet-gateway.service` runs it under systemd, and
+`contrib/unseenet-gateway-update.service` and `.timer` keep it up to date by itself
+(unseenet/unseenet#827): the newest release the project key signed, checked against
+its hashes, never an older one, and back to the one before if it does not come up.
+They wait while the gateway key ripens, and need a core with
+`unseenet-service-update --package` (0.8 or newer).
+
 Passphrases are read from `UNSEENET_GATEWAY_PASSPHRASE` (gateway key) and
 `UNSEENET_GATEWAY_GROUP_PASSPHRASE` (group key), or asked for. After
 `create-groups`, move the group key file off the gateway host: it is only

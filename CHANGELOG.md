@@ -12,6 +12,12 @@ several gateways per group.
 
 ### Added
 
+- **The gateway can update itself** (unseenet/unseenet#827, UN-RFC 0062 section 6.1): each
+  release carries its server requirements and `SHA256SUMS.txt`, and
+  `contrib/unseenet-gateway-update.service` and `.timer` update to the newest release the
+  project key signed (with a core that has `unseenet-service-update --package`, 0.8 or newer).
+  While the gateway key ripens, `run` keeps a `busy` file beside the state, and the update
+  waits: a ripening is never restarted. `contrib/unseenet-gateway.service` runs the gateway.
 - **The gateway follows the directory to the list council** (UN-RFC 0038 section 6.1,
   unseenet/unseenet#861): when the project's `unseenet.gateways` says it moved (`moved_to`),
   the gateway announces in the directory it names, asking once a day. A directory set in the
