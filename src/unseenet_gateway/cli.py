@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import logging
 import sys
@@ -154,9 +155,39 @@ def make_node(cfg: dict, *, gateway, owner=None) -> Node:
     return node
 
 
-async def ripen_quietly(node: Node, key, to: int) -> None:
+BUSY_EVERY = 600     # seconds: the updater takes a busy file older than 6 hours as left over
+
+
+@contextlib.asynccontextmanager
+async def busy(path: Path | None):
+    """While the key ripens, a file that tells the updater not to restart the gateway now
+    (unseenet-service-update --busy, unseenet/unseenet#827): a restart would start the
+    segment being proved over."""
+    if path is None:
+        yield
+        return
+
+    async def keep() -> None:
+        while True:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            except OSError:
+                pass
+            await asyncio.sleep(BUSY_EVERY)
+    task = asyncio.create_task(keep())
     try:
-        await node.ripen(key, to)
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(OSError):
+            path.unlink()
+
+
+async def ripen_quietly(node: Node, key, to: int, busy_file: Path | None = None) -> None:
+    try:
+        async with busy(busy_file):
+            await node.ripen(key, to)
     except Exception as exc:  # noqa: BLE001 - posting ripens to level 0 by itself anyway
         log.warning("ripening stopped: %s", exc)
 
@@ -307,7 +338,8 @@ async def cmd_import(cfg: dict, loop: bool) -> None:
         node.use_key(owner, key_state(gw["group_key"]))
     if loop:                           # to the configured level, low priority (UN-RFC 0025, #58)
         to = service_ripen_to(int(gw["ripen_to"]) if "ripen_to" in gw else None)
-        ripening = asyncio.create_task(ripen_quietly(node, gateway, to))
+        ripening = asyncio.create_task(ripen_quietly(node, gateway, to,
+                                                     Path(gw["state"]).with_name("busy")))
 
     seen: dict = {}                    # the Watcher's views, kept across rebuilds
 
